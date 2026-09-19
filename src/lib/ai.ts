@@ -176,7 +176,7 @@ async function readAutonomousSnapshot() {
   return results.join("\n\n");
 }
 
-async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) => void): Promise<ChatResult> {
+async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) => void, onActivity?: (activity: string[]) => void): Promise<ChatResult> {
   const task = data.prompt.replace(/^\s*ทำเลย\s*:\s*/i, "").trim();
   if (!task) return { ok: false, error: "ใช้แบบนี้: ทำเลย: <สิ่งที่ต้องการให้บอททำ>" };
 
@@ -200,6 +200,7 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
 
   const changed: string[] = [];
   const activity = ["🔍 วิเคราะห์", "🧰 เลือกเครื่องมือ", "⚙️ ลงมือทำ"];
+  onActivity?.([...activity]);
   for (const edit of edits) {
     const current = await readGitHubFile({ data: { owner: "appleid7899067-netizen", repo: "Bosses", path: edit.path } }).catch(() => null);
     const result = await writeGitHubFile({ data: {
@@ -208,8 +209,10 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
       ...(current?.sha ? { sha: current.sha } : {}),
     } });
     changed.push(`${edit.path} (${result?.commit?.sha ? result.commit.sha.slice(0, 7) : "committed"})`);
+    onActivity?.([...activity, "✏️ แก้ไข/บันทึกไฟล์", ...changed.map((item) => `↳ ${item}`)]);
   }
 
+  onActivity?.([...activity, ...(changed.length ? ["✏️ แก้ไข/บันทึกไฟล์"] : ["📖 ตรวจสอบโดยไม่แก้ไฟล์"]), "🧪 ตรวจสอบ GitHub Actions"]);
   let actions = await getGitHubActions({ data: { owner: "appleid7899067-netizen", repo: "Bosses" } }).catch((error) => ({ total_count: 0, workflow_runs: [], error: error instanceof Error ? error.message : "Actions check failed" }));
   let latest = actions.workflow_runs?.slice(0, 3) ?? [];
   for (let attempt = 0; changed.length && attempt < 10; attempt += 1) {
@@ -229,6 +232,7 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
   activity.push(changed.length ? "✏️ แก้ไข/บันทึกไฟล์" : "📖 ตรวจสอบโดยไม่แก้ไฟล์");
   activity.push("🧪 ตรวจสอบ GitHub Actions");
   if (latestRun?.status === "completed" && latestRun.conclusion === "success") activity.push("✅ Verification ผ่าน");
+  onActivity?.([...activity]);
   const final = [
     `ทำงานอัตโนมัติเสร็จและผ่าน verification: ${plan.summary}`,
     changed.length ? `ไฟล์ที่ commit: ${changed.join(", ")}` : "ไม่มีไฟล์ที่ต้องแก้",
@@ -245,8 +249,8 @@ function isAutonomousRequest(prompt: string) {
   return /(?:ทำเลย\s*:|แก้(?:โค้ด|code|บั๊ก|bug|error|ปัญหา)|debug|fix\s+(?:the\s+)?(?:code|bug|error|project|app)|ตรวจ(?:โค้ด|code|บั๊ก|bug|โปรเจกต์|project|เว็บ)|ตรวจเว็บ|ตรวจโปรเจกต์|โปรเจกต์.*(?:พัง|เสีย|ล่ม|error)|เว็บ.*(?:พัง|ล่ม|error|502|500)|deploy(?:ment)?(?:\s+)?(?:ไม่ผ่าน|พัง|ล่ม|error|failed)|build.*(?:ไม่ผ่าน|พัง|error|failed)|(?:500|502|503)\b|stack\s*trace|typescript\s*error|runtime\s*error)/i.test(prompt);
 }
 
-export async function runFleet(data: FleetRequest, onDelta?: (full: string) => void): Promise<ChatResult> {
-  if (isAutonomousRequest(data.prompt)) return runAutonomousAgent(data, onDelta);
+export async function runFleet(data: FleetRequest, onDelta?: (full: string) => void, onActivity?: (activity: string[]) => void): Promise<ChatResult> {
+  if (isAutonomousRequest(data.prompt)) return runAutonomousAgent(data, onDelta, onActivity);
 
   const githubContext = await runGitHubCommand(data.prompt).catch((error) => `GitHub tool error: ${error instanceof Error ? error.message : String(error)}`);
   const systemPrompt = SYSTEM_PROMPTS[data.mode as keyof typeof SYSTEM_PROMPTS] ?? SYSTEM_PROMPTS.chat;
