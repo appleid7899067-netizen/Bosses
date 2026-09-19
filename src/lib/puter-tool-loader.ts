@@ -225,7 +225,9 @@ export async function loadCodingFleetTools(forceRefresh = false): Promise<Coding
   const codingFleet = sources[0].status === "fulfilled" ? sources[0].value : [];
   const pluginTools = sources[1].status === "fulfilled" ? sources[1].value : [];
   const mcpTools = sources[2].status === "fulfilled" ? sources[2].value : [];
-  const tools = [...codingFleet, ...pluginTools, ...nativeSandboxTools(), ...nativeWebTools(), ...nativeGitHubTools(), ...mcpTools].slice(0, TOOL_LIMIT);
+  const nativeTools = [...nativeSandboxTools(), ...nativeWebTools(), ...nativeGitHubTools()];
+  const remoteTools = [...codingFleet, ...pluginTools, ...mcpTools];
+  const tools = [...nativeTools, ...remoteTools].slice(0, TOOL_LIMIT);
   if (tools.length > 0) { cachedTools = tools; cachedAt = Date.now(); return tools; }
   if (cachedTools) return cachedTools;
   throw new Error("No callable tools are available.");
