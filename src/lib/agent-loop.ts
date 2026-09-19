@@ -19,7 +19,7 @@ function looksLikeVerification(prompt: string): boolean {
 }
 
 function isVerificationToolCall(name: string): boolean {
-  return /(^|_)(test|verify|verification|build|ci|check|status|health|deploy|sandbox)(_|$)/i.test(name);
+  return /(^|_)(test|verify|verification|build|ci|check|status|health|deploy|sandbox|web|http)(_|$)/i.test(name);
 }
 
 /** Plan → Select → Act → Observe → Refine → Verify. */
@@ -35,7 +35,7 @@ export async function runAgentLoop(prompt: string, tools: CodingFleetTool[], max
 Agent protocol: Plan → Select → Act → Observe → Refine → Verify.
 MCP tools discovered: ${mcpCount}.
 Task mutation expected: ${looksLikeMutation(prompt)}.
-Verification requested or required: ${looksLikeVerification(prompt)}.
+Verification requested or required: ${looksLikeVerification(prompt)}. For deployed URLs, prefer web_check and treat HTTP 2xx as healthy; 5xx or timeout means verification failed and should trigger diagnosis/repair.
 Use the selected tools. If a tool fails, diagnose from its actual output and repair instead of guessing.
 Never claim an external action succeeded without evidence.`;
   let last = "";
