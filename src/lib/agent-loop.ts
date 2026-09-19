@@ -18,6 +18,10 @@ function looksLikeVerification(prompt: string): boolean {
   return /test|verify|ตรวจ|เช็ก|build|ci|ผ่าน|ทำงานไหม|ใช้งานได้/i.test(prompt);
 }
 
+function isVerificationToolCall(name: string): boolean {
+  return /(^|_)(test|verify|verification|build|ci|check|status|health|deploy)(_|$)/i.test(name);
+}
+
 /** Plan → Select → Act → Observe → Refine → Verify. */
 export async function runAgentLoop(prompt: string, tools: CodingFleetTool[], maxIterations = 6): Promise<AgentRunResult> {
   const steps: AgentStep[] = [
@@ -36,6 +40,8 @@ Use the selected tools. If a tool fails, diagnose from its actual output and rep
 Never claim an external action succeeded without evidence.`;
   let last = "";
   let hadToolActivity = false;
+  let hadVerificationActivity = false;
+  const mutationExpected = looksLikeMutation(prompt);
 
   for (let iteration = 0; iteration < Math.max(1, Math.min(maxIterations, 8)); iteration += 1) {
     steps.push({ phase: "act", detail: `รอบที่ ${iteration + 1}: ลงมือทำผ่านเครื่องมือ` });
@@ -46,9 +52,21 @@ Never claim an external action succeeded without evidence.`;
     }
     last = result.text;
     hadToolActivity ||= result.toolCalls.length > 0;
+    hadVerificationActivity ||= result.toolCalls.some((call) => isVerificationToolCall(call.name));
     steps.push({ phase: "observe", detail: `รอบที่ ${iteration + 1}: ได้ผลลัพธ์และ ${result.toolCalls.length} tool call` });
     if (!result.toolCalls.length) {
-      steps.push({ phase: "verify", detail: hadToolActivity ? "ตรวจผลลัพธ์สุดท้ายจาก tool loop แล้ว" : "ไม่มี external mutation ที่ต้องตรวจเพิ่ม" });
+      if (mutationExpected && !hadVerificationActivity) {
+        steps.push({ phase: "verify", detail: "ยังไม่มีหลักฐานจาก verification tool หลังมีการเปลี่ยนแปลง จึงบังคับให้ Agent ตรวจซ้ำ" });
+        if (iteration === Math.min(maxIterations, 8) - 1) {
+          return { ok: false, text: last, steps, verified: false };
+        }
+        steps.push({ phase: "refine", detail: "ขอให้ Agent เรียกเครื่องมือตรวจสอบจริงก่อนประกาศสำเร็จ" });
+        currentPrompt = `${prompt}
+
+Verification gate: external mutation is expected. You MUST use an actual verification/status/test/build/CI/deploy tool and report its concrete result before finishing. Do not answer with a success claim without that evidence.`;
+        continue;
+      }
+      steps.push({ phase: "verify", detail: mutationExpected ? "พบหลักฐานจาก verification tool แล้ว" : "ไม่มี external mutation ที่ต้องตรวจเพิ่ม" });
       return { ok: true, text: last, steps, verified: true };
     }
     if (iteration === Math.min(maxIterations, 8) - 1) {
