@@ -214,9 +214,7 @@ async function loadPublicMcpTools(): Promise<CodingFleetTool[]> {
 
 async function readJsonRpcResponse(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text(); const trimmed = text.trim(); if (!trimmed) return {};
-  if (trimmed.startsWith("data:")) { const line = trimmed.split(/\r?\n/).find((x) => x.startsWith("data:")); if (line) return JSON.parse(line.slice(5).trim()) as Record<string, unknown>; }
-/).find((x) => x.startsWith("data:")); if (line) return JSON.parse(line.slice(5).trim()) as Record<string, unknown>; }
-  return JSON.parse(trimmed) as Record<string, unknown>;
+  if (trimmed.startsWith("data:")) { const line = trimmed.split("\n").find((x) => x.startsWith("data:")); if (line) return JSON.parse(line.slice(5).trim()) as Record<string, unknown>; }\n  return JSON.parse(trimmed) as Record<string, unknown>;
 }
 
 async function callPublicMcpTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> {
@@ -266,7 +264,6 @@ export async function callWithFallback(prompt: string, tools: CodingFleetTool[],
     try {
       const availableTools = tools.slice(0, TOOL_LIMIT);
       const system = ["You are Bossnu SlieLo Agent. Use available tools when they materially improve the answer. Never claim an external action succeeded unless the tool returned success.", "Available tools:", toolSummary(availableTools)].join("\n");
-      const messages: Array<Record<string, unknown>> = [{ role: "system", content: system }, { role: "user", content: prompt }];
       const toolResults: ToolExecutionResult[] = [];
       for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
         const result = await chatModel(messages, availableTools, model);
