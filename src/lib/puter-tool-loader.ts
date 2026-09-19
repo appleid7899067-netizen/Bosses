@@ -265,7 +265,7 @@ async function chatModel(messages: Array<Record<string, unknown>>, tools: Coding
 
 export type ToolExecutionResult = { name: string; ok: boolean; result?: unknown; error?: string };
 
-export async function callWithFallback(prompt: string, tools: CodingFleetTool[], models: readonly string[] = DEFAULT_MODELS): Promise<{ ok: true; text: string; model: string; toolCalls: ToolCall[]; toolResults: ToolExecutionResult[] } | { ok: false; error: string }> {
+export async function callWithFallback(prompt: string, tools: CodingFleetTool[], models: readonly string[] = DEFAULT_MODELS, onActivity?: (activity: string[]) => void): Promise<{ ok: true; text: string; model: string; toolCalls: ToolCall[]; toolResults: ToolExecutionResult[] } | { ok: false; error: string }> {
   let lastError = "No model succeeded.";
   for (const model of models) {
     try {
@@ -289,11 +289,11 @@ export async function callWithFallback(prompt: string, tools: CodingFleetTool[],
           }
           try {
             const output = await executeTool(tool, call.arguments);
-            toolResults.push({ name: call.name, ok: true, result: output });
+            toolResults.push({ name: call.name, ok: true, result: output }); onActivity?.([`⚙️ ใช้เครื่องมือ: ${call.name}`, `👀 Observe: ${toolResults.filter((item) => item.ok).length}/${toolResults.length} ผ่าน`]);
             messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: true, result: output }) });
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : String(error);
-            toolResults.push({ name: call.name, ok: false, error: errorMessage });
+            toolResults.push({ name: call.name, ok: false, error: errorMessage }); onActivity?.([`⚙️ ใช้เครื่องมือ: ${call.name}`, `❌ Tool error: ${errorMessage.slice(0, 180)}`]);
             messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: errorMessage }) });
           }
         }
