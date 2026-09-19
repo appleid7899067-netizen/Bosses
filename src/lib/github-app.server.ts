@@ -216,6 +216,7 @@ export async function githubActions(input: { owner: string; repo: string; branch
       status: string;
       conclusion: string | null;
       head_branch: string | null;
+      head_sha: string;
       html_url: string;
       created_at: string;
     }>;
