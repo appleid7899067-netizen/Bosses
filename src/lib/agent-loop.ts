@@ -83,6 +83,12 @@ Never claim an external action succeeded without evidence.`;
     hadVerificationActivity ||= result.toolResults.some((item) => isVerificationToolCall(item.name));
     const verification = verificationPassed(result.toolResults);
     if (verification.passed) verificationPassedEvidence = verification.evidence;
+    for (const toolResult of result.toolResults) {
+      const detail = toolResult.ok
+        ? `✓ ${toolResult.name}`
+        : `✗ ${toolResult.name}: ${String(toolResult.error ?? "tool failed").slice(0, 180)}`;
+      steps.push({ phase: "observe", detail });
+    }
     steps.push({ phase: "observe", detail: `รอบที่ ${iteration + 1}: ได้ผลลัพธ์และ ${result.toolCalls.length} tool call` });
     if (!result.toolCalls.length) {
       if (mutationExpected && !verificationPassedEvidence) {
