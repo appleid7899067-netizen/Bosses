@@ -41,6 +41,12 @@ function normalizeTools(value: unknown): CodingFleetTool[] {
   return Array.isArray(raw) ? raw.filter((tool): tool is CodingFleetTool => !!tool && typeof tool === "object").slice(0, TOOL_LIMIT) : [];
 }
 
+function parseArguments(value: unknown): Record<string, unknown> {
+  if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>;
+  if (typeof value !== "string" || !value.trim()) return {};
+  try { const parsed = JSON.parse(value); return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : {}; } catch { return {}; }
+}
+
 function toolName(tool: CodingFleetTool) { return String(tool.name ?? tool.slug ?? tool.id ?? "").trim(); }
 function toolParameters(tool: CodingFleetTool): Record<string, unknown> {
   const value = tool.input_schema ?? tool.inputSchema ?? tool.parameters;
