@@ -209,12 +209,27 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
     changed.push(`${edit.path} (${result?.commit?.sha ? result.commit.sha.slice(0, 7) : "committed"})`);
   }
 
-  const actions = await getGitHubActions({ data: { owner: "appleid7899067-netizen", repo: "Bosses" } }).catch((error) => ({ total_count: 0, workflow_runs: [], error: error instanceof Error ? error.message : "Actions check failed" }));
-  const latest = actions.workflow_runs?.slice(0, 3) ?? [];
+  let actions = await getGitHubActions({ data: { owner: "appleid7899067-netizen", repo: "Bosses" } }).catch((error) => ({ total_count: 0, workflow_runs: [], error: error instanceof Error ? error.message : "Actions check failed" }));
+  let latest = actions.workflow_runs?.slice(0, 3) ?? [];
+  const targetSha = changed.length ? changed[changed.length - 1].match(/\(([0-9a-f]{7,})\)$/)?.[1] : undefined;
+  for (let attempt = 0; changed.length && attempt < 10; attempt += 1) {
+    const candidate = latest.find((run) => !targetSha || String(run.head_sha ?? "").startsWith(targetSha));
+    if (candidate?.status === "completed") break;
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    actions = await getGitHubActions({ data: { owner: "appleid7899067-netizen", repo: "Bosses" } }).catch((error) => ({ total_count: 0, workflow_runs: [], error: error instanceof Error ? error.message : "Actions check failed" }));
+    latest = actions.workflow_runs?.slice(0, 3) ?? [];
+  }
+  const latestRun = latest[0];
+  if (changed.length && latestRun && latestRun.status === "completed" && latestRun.conclusion !== "success") {
+    return { ok: false, error: `แก้ไฟล์แล้ว แต่ verification ไม่ผ่าน: ${latestRun.name} ${latestRun.conclusion}` };
+  }
+  if (changed.length && latestRun?.status !== "completed") {
+    return { ok: false, error: "แก้ไฟล์แล้ว แต่ยังไม่มีผล verification ที่เสร็จสมบูรณ์ จึงยังไม่รายงานว่างานเสร็จ" };
+  }
   const final = [
-    `ทำงานอัตโนมัติเสร็จ: ${plan.summary}`,
+    `ทำงานอัตโนมัติเสร็จและผ่าน verification: ${plan.summary}`,
     changed.length ? `ไฟล์ที่ commit: ${changed.join(", ")}` : "ไม่มีไฟล์ที่ต้องแก้",
-    latest.length ? `GitHub Actions ล่าสุด: ${latest.map((run) => `${run.name}: ${run.status}/${run.conclusion ?? "pending"}`).join(" | ")}` : "ยังไม่พบ GitHub Actions run ใหม่",
+    latest.length ? `GitHub Actions ล่าสุด: ${latest.map((run) => `${run.name}: ${run.status}/${run.conclusion ?? "pending"}`).join(" | ")}` : "ไม่มี GitHub Actions run ให้ยืนยัน",
     "ถ้า repo ต่อกับ Vercel การ push นี้จะเป็นตัวกระตุ้น deployment ตามการตั้งค่าของ Vercel",
   ].join("\n");
   onDelta?.(final);
