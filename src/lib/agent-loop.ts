@@ -71,6 +71,7 @@ Never claim an external action succeeded without evidence.`;
   let verificationPassedEvidence = "";
   let failedToolStreak = 0;
   const repairedToolNames = new Set<string>();
+  const toolFailureCounts = new Map<string, number>();
   const mutationExpected = looksLikeMutation(prompt);
 
   for (let iteration = 0; iteration < Math.max(1, Math.min(maxIterations, 8)); iteration += 1) {
@@ -112,10 +113,13 @@ Verification gate: external mutation is expected. You MUST use an actual verific
       return { ok: false, text: last, steps, verified: false };
     }
     const failedResults = result.toolResults.filter((item) => !item.ok);
-    const failedTools = failedResults.map((item) => `${item.name}: ${String(item.error ?? "unknown error").slice(0, 800)}`);
+    const failedTools = failedResults.map((item) => `${item.name} (failures: ${toolFailureCounts.get(item.name) ?? 1}): ${String(item.error ?? "unknown error").slice(0, 800)}`);
     if (failedResults.length) {
       failedToolStreak += 1;
-      for (const item of failedResults) repairedToolNames.add(item.name);
+      for (const item of failedResults) {
+        repairedToolNames.add(item.name);
+        toolFailureCounts.set(item.name, (toolFailureCounts.get(item.name) ?? 0) + 1);
+      }
     } else {
       failedToolStreak = 0;
     }
@@ -124,9 +128,10 @@ Verification gate: external mutation is expected. You MUST use an actual verific
     } else {
       steps.push({ phase: "refine", detail: "นำผลจริงกลับไปให้ Agent วิเคราะห์และแก้ต่อ" });
     }
+    const repeatedFailures = Array.from(toolFailureCounts.entries()).filter(([, count]) => count >= 2).map(([name, count]) => `${name} failed ${count} times`);
     currentPrompt = `${prompt}
 
-Repair context: ${repairedToolNames.size ? `เครื่องมือที่เคยพลาดและต้องติดตาม: ${Array.from(repairedToolNames).join(", ")}` : "ยังไม่มี"}.
+Repair context: ${repairedToolNames.size ? `เครื่องมือที่เคยพลาดและต้องติดตาม: ${Array.from(repairedToolNames).join(", ")}. เครื่องมือที่พลาดซ้ำ: ${repeatedFailures.length ? repeatedFailures.join(", ") : "ไม่มี"}` : "ยังไม่มี"}.
 
 Previous agent output:
 ${last.slice(-12000)}
