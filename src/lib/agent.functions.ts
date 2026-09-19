@@ -39,8 +39,6 @@ export const runAgent = createServerFn({ method: "POST" })
       }
     }
 
-    const result = await runAgentLoop(data.prompt, selected, data.maxIterations ?? 6);
-    return { ...result, steps: [registryStep, ...result.steps] };
   });
 
 export const runAgentSandbox = createServerFn({ method: "POST" })
