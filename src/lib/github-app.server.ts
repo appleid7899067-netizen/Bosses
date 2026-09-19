@@ -229,6 +229,15 @@ export async function githubActions(input: { owner: string; repo: string; branch
   return result.data;
 }
 
+async function githubText(path: string, token: string): Promise<string> {
+  const response = await fetch(`${API}${path}`, {
+    headers: { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": API_VERSION, Authorization: `Bearer ${token}` },
+  });
+  const text = await response.text();
+  if (!response.ok) throw new Error(`GitHub API ${response.status}: ${text.slice(0, 300)}`);
+  return text;
+}
+
 export async function githubWorkflowDiagnostics(input: { owner: string; repo: string; runId: number }) {
   const token = await getInstallationToken(input.owner, input.repo);
   const jobs = await github<{ jobs: Array<{ id: number; name: string; status: string; conclusion: string | null; steps?: Array<{ name: string; status: string; conclusion: string | null }> }> }>(
@@ -238,11 +247,11 @@ export async function githubWorkflowDiagnostics(input: { owner: string; repo: st
   const failedJobs = jobs.data.jobs.filter((job) => job.conclusion === "failure" || job.conclusion === "cancelled");
   const diagnostics = [] as Array<{ jobId: number; name: string; conclusion: string | null; log: string }>;
   for (const job of failedJobs.slice(0, 3)) {
-    const logResponse = await github<unknown>(
+    const log = await githubText(
       `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/actions/jobs/${job.id}/logs`,
-      {}, token,
+      token,
     );
-    diagnostics.push({ jobId: job.id, name: job.name, conclusion: job.conclusion, log: typeof logResponse.data === "string" ? logResponse.data.slice(-16000) : JSON.stringify(logResponse.data).slice(-16000) });
+    diagnostics.push({ jobId: job.id, name: job.name, conclusion: job.conclusion, log: log.slice(-16000) });
   }
   return { runId: input.runId, jobs: jobs.data.jobs, failedJobs: diagnostics };
 }
