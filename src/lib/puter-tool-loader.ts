@@ -214,7 +214,7 @@ async function loadPublicMcpTools(): Promise<CodingFleetTool[]> {
 
 async function readJsonRpcResponse(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text(); const trimmed = text.trim(); if (!trimmed) return {};
-  if (trimmed.startsWith("data:")) { const line = trimmed.split(/\r?
+  if (trimmed.startsWith("data:")) { const line = trimmed.split(/\r?\n/).find((x) => x.startsWith("data:")); if (line) return JSON.parse(line.slice(5).trim()) as Record<string, unknown>; }
 /).find((x) => x.startsWith("data:")); if (line) return JSON.parse(line.slice(5).trim()) as Record<string, unknown>; }
   return JSON.parse(trimmed) as Record<string, unknown>;
 }
@@ -248,9 +248,7 @@ export async function loadCodingFleetTools(forceRefresh = false): Promise<Coding
 }
 
 function toPuterTools(tools: CodingFleetTool[]): PuterFunctionTool[] { return tools.slice(0, TOOL_LIMIT).map((tool) => { const name = toolName(tool); if (!name) return null; return { type: "function" as const, function: { name, description: String(tool.description ?? `Tool: ${name}`), parameters: toolParameters(tool) } }; }).filter((tool): tool is PuterFunctionTool => tool !== null); }
-function toolSummary(tools: CodingFleetTool[]): string { return tools.slice(0, TOOL_LIMIT).map((tool) => JSON.stringify({ name: toolName(tool), description: tool.description, input_schema: toolParameters(tool) })).join("
-"); }
-function parseArguments(value: unknown): Record<string, unknown> { if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>; if (typeof value === "string") { try { const p = JSON.parse(value); if (p && typeof p === "object" && !Array.isArray(p)) return p as Record<string, unknown>; } catch {} } return {}; }
+function toolSummary(tools: CodingFleetTool[]): string { return tools.slice(0, TOOL_LIMIT).map((tool) => JSON.stringify({ name: toolName(tool), description: tool.description, input_schema: toolParameters(tool) })).join("\n"); }
 function extractToolCalls(value: unknown): ToolCall[] { const response = value as Record<string, unknown> | null; const message = response?.message as Record<string, unknown> | undefined; const raw = message?.tool_calls ?? response?.tool_calls ?? response?.toolCalls; if (!Array.isArray(raw)) return []; return raw.flatMap((item) => { if (!item || typeof item !== "object") return []; const call = item as Record<string, unknown>; const fn = call.function as Record<string, unknown> | undefined; const name = String(fn?.name ?? call.name ?? "").trim(); return name ? [{ id: typeof call.id === "string" ? call.id : undefined, name, arguments: parseArguments(fn?.arguments ?? call.arguments ?? call.input) }] : []; }); }
 function assistantToolMessage(response: unknown): Record<string, unknown> | null { const message = (response as Record<string, unknown> | null)?.message; return message && typeof message === "object" ? message as Record<string, unknown> : null; }
 function resolveEndpoint(tool: CodingFleetTool): string | null { const candidate = tool.endpoint ?? tool.url; if (typeof candidate !== "string" || !candidate.trim()) return null; try { return new URL(candidate, `${CODINGFLEET_BASE}/`).toString(); } catch { return null; } }
@@ -267,9 +265,7 @@ export async function callWithFallback(prompt: string, tools: CodingFleetTool[],
   for (const model of models) {
     try {
       const availableTools = tools.slice(0, TOOL_LIMIT);
-      const system = ["You are Bossnu SlieLo Agent. Use available tools when they materially improve the answer. Never claim an external action succeeded unless the tool returned success.", "Available tools:", toolSummary(availableTools)].join("
-
-");
+      const system = ["You are Bossnu SlieLo Agent. Use available tools when they materially improve the answer. Never claim an external action succeeded unless the tool returned success.", "Available tools:", toolSummary(availableTools)].join("\n");
       const messages: Array<Record<string, unknown>> = [{ role: "system", content: system }, { role: "user", content: prompt }];
       const toolResults: ToolExecutionResult[] = [];
       for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
