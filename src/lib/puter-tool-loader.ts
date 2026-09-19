@@ -1,4 +1,5 @@
 import { ensurePuter, extractText } from "@/lib/puter";
+import { runInSandbox } from "@/lib/sandbox";
 
 export type CodingFleetTool = {
   name?: string;
@@ -67,12 +68,38 @@ async function loadPluginTools(): Promise<CodingFleetTool[]> {
   return normalizePluginEntries(await response.json());
 }
 
+function nativeSandboxTools(): CodingFleetTool[] {
+  return [{
+    name: "sandbox_run",
+    description: "Run code in the trusted HTTPS sandbox and return stdout, stderr, exit code, duration, and success. Use this to reproduce errors and verify fixes.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        language: { type: "string", minLength: 1, maxLength: 40 },
+        code: { type: "string", maxLength: 500000 },
+        timeoutMs: { type: "integer", minimum: 100, maximum: 120000 }
+      },
+      required: ["language", "code"],
+      additionalProperties: false
+    },
+    githubSource: false
+  }];
+}
+
 function nativeGitHubTools(): CodingFleetTool[] {
   return [
     { name: "github_get_repo", description: "Read public GitHub repository metadata. No GitHub credential is required for public repositories.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" } }, required: ["owner", "repo"], additionalProperties: false }, githubSource: true },
     { name: "github_get_file", description: "Read a file from a public GitHub repository. No GitHub credential is required for public repositories.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, path: { type: "string" }, ref: { type: "string" } }, required: ["owner", "repo", "path"], additionalProperties: false }, githubSource: true },
     { name: "github_list_commits", description: "Read recent commits from a public GitHub repository. No GitHub credential is required for public repositories.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, per_page: { type: "integer", minimum: 1, maximum: 20 } }, required: ["owner", "repo"], additionalProperties: false }, githubSource: true },
   ];
+}
+
+async function executeSandboxTool(args: Record<string, unknown>): Promise<unknown> {
+  const language = String(args.language ?? "").trim();
+  const code = String(args.code ?? "");
+  if (!language || !code) throw new Error("sandbox_run requires language and code.");
+  const timeoutMs = args.timeoutMs === undefined ? undefined : Number(args.timeoutMs);
+  return runInSandbox({ language, code, ...(timeoutMs === undefined ? {} : { timeoutMs }) });
 }
 
 async function executeGitHubTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> {
@@ -142,7 +169,7 @@ export async function loadCodingFleetTools(forceRefresh = false): Promise<Coding
   const codingFleet = sources[0].status === "fulfilled" ? sources[0].value : [];
   const pluginTools = sources[1].status === "fulfilled" ? sources[1].value : [];
   const mcpTools = sources[2].status === "fulfilled" ? sources[2].value : [];
-  const tools = [...codingFleet, ...pluginTools, ...nativeGitHubTools(), ...mcpTools].slice(0, TOOL_LIMIT);
+  const tools = [...codingFleet, ...pluginTools, ...nativeSandboxTools(), ...nativeGitHubTools(), ...mcpTools].slice(0, TOOL_LIMIT);
   if (tools.length > 0) { cachedTools = tools; cachedAt = Date.now(); return tools; }
   if (cachedTools) return cachedTools;
   throw new Error("No callable tools are available.");
@@ -156,7 +183,7 @@ function assistantToolMessage(response: unknown): Record<string, unknown> | null
 function resolveEndpoint(tool: CodingFleetTool): string | null { const candidate = tool.endpoint ?? tool.url; if (typeof candidate !== "string" || !candidate.trim()) return null; try { return new URL(candidate, `${CODINGFLEET_BASE}/`).toString(); } catch { return null; } }
 
 async function executePluginTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> { const endpoint = resolveEndpoint(tool); if (!endpoint) throw new Error(`Plugin ${toolName(tool)} has no callable endpoint.`); const method = String(tool.method ?? "POST").toUpperCase(); const response = await fetch(endpoint, { method, headers: { Accept: "application/json", "Content-Type": "application/json" }, ...(method === "GET" || method === "HEAD" ? {} : { body: JSON.stringify({ arguments: args }) }) }); const text = await response.text(); if (!response.ok) throw new Error(`Plugin ${String(tool.pluginName ?? toolName(tool))} returned HTTP ${response.status}: ${text.slice(0, 240)}`); try { return JSON.parse(text); } catch { return text; } }
-async function executeTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> { if (tool.githubSource) return executeGitHubTool(tool, args); if (tool.mcpServer) return callPublicMcpTool(tool, args); if (tool.pluginSource) return executePluginTool(tool, args); const endpoint = resolveEndpoint(tool); if (!endpoint) throw new Error(`Tool ${toolName(tool)} has no callable HTTPS endpoint.`); const response = await fetch(endpoint, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ tool: tool.slug ?? toolName(tool), arguments: args }) }); const text = await response.text(); if (!response.ok) throw new Error(`Tool ${toolName(tool)} returned HTTP ${response.status}: ${text.slice(0, 240)}`); try { return JSON.parse(text); } catch { return text; } }
+async function executeTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> { if (toolName(tool) === "sandbox_run") return executeSandboxTool(args); if (tool.githubSource) return executeGitHubTool(tool, args); if (tool.mcpServer) return callPublicMcpTool(tool, args); if (tool.pluginSource) return executePluginTool(tool, args); const endpoint = resolveEndpoint(tool); if (!endpoint) throw new Error(`Tool ${toolName(tool)} has no callable HTTPS endpoint.`); const response = await fetch(endpoint, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ tool: tool.slug ?? toolName(tool), arguments: args }) }); const text = await response.text(); if (!response.ok) throw new Error(`Tool ${toolName(tool)} returned HTTP ${response.status}: ${text.slice(0, 240)}`); try { return JSON.parse(text); } catch { return text; } }
 
 async function chatModel(messages: Array<Record<string, unknown>>, tools: CodingFleetTool[], model: string): Promise<{ text: string; response: unknown; toolCalls: ToolCall[] }> { const puter = await ensurePuter(); if (!puter.auth.isSignedIn()) await puter.auth.signIn(); const response = await puter.ai.chat(messages, { model, tools: toPuterTools(tools), normalize: true, stream: false }); return { text: extractText(response), response, toolCalls: extractToolCalls(response) }; }
 
