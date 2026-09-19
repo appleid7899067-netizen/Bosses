@@ -159,6 +159,19 @@ const TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
+      name: "web_check",
+      description: "Check a deployed HTTPS URL and return status, final URL, response time, content type, and body preview. Use after deployment and when diagnosing 500/502/503/timeouts.",
+      parameters: {
+        type: "object",
+        properties: { url: { type: "string", minLength: 8, maxLength: 2048 }, timeoutMs: { type: "integer", minimum: 1000, maximum: 30000 } },
+        required: ["url"],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "github_wait_for_workflow",
       description: "Wait for a GitHub Actions run to complete and return its actual conclusion. Use after dispatching or after a commit that triggers CI.",
       parameters: {
@@ -206,6 +219,23 @@ function assistantMessage(response: unknown): Record<string, unknown> | null {
 }
 
 async function execute(name: string, args: Record<string, unknown>): Promise<unknown> {
+  if (name === "web_check") {
+    const rawUrl = String(args.url ?? "").trim();
+    if (!/^https:\/\//i.test(rawUrl)) throw new Error("web_check only accepts HTTPS URLs.");
+    let target: URL;
+    try { target = new URL(rawUrl); } catch { throw new Error("Invalid URL."); }
+    const timeoutMs = Math.min(30000, Math.max(1000, Number(args.timeoutMs ?? 15000)));
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const started = Date.now();
+    try {
+      const response = await fetch(target.toString(), { redirect: "follow", signal: controller.signal, headers: { Accept: "text/html,application/json,text/plain;q=0.9,*/*;q=0.1", "User-Agent": "Bossnu-WebCheck/1.0" } });
+      const body = await response.text();
+      return { ok: response.ok, status: response.status, statusText: response.statusText, finalUrl: response.url, responseTimeMs: Date.now() - started, contentType: response.headers.get("content-type"), bodyPreview: body.slice(0, 1200) };
+    } catch (error) {
+      return { ok: false, status: 0, responseTimeMs: Date.now() - started, error: error instanceof Error ? error.message : String(error) };
+    } finally { clearTimeout(timer); }
+  }
   const owner = String(args.owner ?? "").trim();
   const repo = String(args.repo ?? "").trim();
   if (!owner || !repo) throw new Error("owner and repo are required");
