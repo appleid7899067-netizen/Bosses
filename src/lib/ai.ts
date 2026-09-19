@@ -199,6 +199,7 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
   if (edits.length !== plan.files.length) return { ok: false, error: "Autonomous plan contained an unsafe or oversized file edit; no files were written." };
 
   const changed: string[] = [];
+  const activity = ["🔍 วิเคราะห์", "🧰 เลือกเครื่องมือ", "⚙️ ลงมือทำ"];
   for (const edit of edits) {
     const current = await readGitHubFile({ data: { owner: "appleid7899067-netizen", repo: "Bosses", path: edit.path } }).catch(() => null);
     const result = await writeGitHubFile({ data: {
@@ -225,6 +226,9 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
   if (changed.length && latestRun?.status !== "completed") {
     return { ok: false, error: "แก้ไฟล์แล้ว แต่ยังไม่มีผล verification ที่เสร็จสมบูรณ์ จึงยังไม่รายงานว่างานเสร็จ" };
   }
+  activity.push(changed.length ? "✏️ แก้ไข/บันทึกไฟล์" : "📖 ตรวจสอบโดยไม่แก้ไฟล์");
+  activity.push("🧪 ตรวจสอบ GitHub Actions");
+  if (latestRun?.status === "completed" && latestRun.conclusion === "success") activity.push("✅ Verification ผ่าน");
   const final = [
     `ทำงานอัตโนมัติเสร็จและผ่าน verification: ${plan.summary}`,
     changed.length ? `ไฟล์ที่ commit: ${changed.join(", ")}` : "ไม่มีไฟล์ที่ต้องแก้",
@@ -232,7 +236,7 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
     "ถ้า repo ต่อกับ Vercel การ push นี้จะเป็นตัวกระตุ้น deployment ตามการตั้งค่าของ Vercel",
   ].join("\n");
   onDelta?.(final);
-  return { ok: true, text: final, model: data.modelId || "gpt-5.6-luna" };
+  return { ok: true, text: final, model: data.modelId || "gpt-5.6-luna", activity };
 }
 
 function isAutonomousRequest(prompt: string) {
@@ -264,7 +268,7 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
       const fleet = await callWithFallback(prompt, tools, data.modelId ? [data.modelId, "gpt-4o", "gemini-2.5-pro"] : undefined);
       if (fleet.ok) {
         onDelta?.(fleet.text);
-        return { ok: true, text: fleet.text, model: fleet.model };
+        return { ok: true, text: fleet.text, model: fleet.model, activity: ["🧠 วิเคราะห์", "🧰 Tool Registry", "⚙️ ประมวลผล", "👀 Observe", "✅ ส่งผลลัพธ์"] };
       }
     }
   } catch {
