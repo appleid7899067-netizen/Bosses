@@ -113,6 +113,10 @@ Verification gate: external mutation is expected. You MUST use an actual verific
       return { ok: false, text: last, steps, verified: false };
     }
     const failedResults = result.toolResults.filter((item) => !item.ok);
+    const verificationResults = result.toolResults.filter((item) => isVerificationToolCall(item.name));
+    if (verificationResults.length) {
+      steps.push({ phase: "observe", detail: `Verification observations: ${verificationResults.map((item) => `${item.name}=${item.ok ? "passed" : "failed"}`).join(", ")}` });
+    }
     const failedTools = failedResults.map((item) => `${item.name} (failures: ${toolFailureCounts.get(item.name) ?? 1}): ${String(item.error ?? "unknown error").slice(0, 800)}`);
     if (failedResults.length) {
       failedToolStreak += 1;
