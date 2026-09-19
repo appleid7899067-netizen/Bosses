@@ -263,6 +263,12 @@ async function executeTool(tool: CodingFleetTool, args: Record<string, unknown>)
 
 async function chatModel(messages: Array<Record<string, unknown>>, tools: CodingFleetTool[], model: string): Promise<{ text: string; response: unknown; toolCalls: ToolCall[] }> { const puter = await ensurePuter(); if (!puter.auth.isSignedIn()) await puter.auth.signIn(); const response = await puter.ai.chat(messages, { model, tools: toPuterTools(tools), normalize: true, stream: false }); return { text: extractText(response), response, toolCalls: extractToolCalls(response) }; }
 
+function extractPublicHttpsUrl(value: unknown): string | null {
+  const text = typeof value === "string" ? value : JSON.stringify(value ?? "");
+  const match = text.match(/https:\/\/[^\s"'<>)\\]}>,]+/i);
+  return match?.[0] ?? null;
+}
+
 export type ToolExecutionResult = { name: string; ok: boolean; result?: unknown; error?: string };
 
 export async function callWithFallback(prompt: string, tools: CodingFleetTool[], models: readonly string[] = DEFAULT_MODELS, onActivity?: (activity: string[]) => void): Promise<{ ok: true; text: string; model: string; toolCalls: ToolCall[]; toolResults: ToolExecutionResult[] } | { ok: false; error: string }> {
@@ -295,6 +301,24 @@ export async function callWithFallback(prompt: string, tools: CodingFleetTool[],
             const errorMessage = error instanceof Error ? error.message : String(error);
             toolResults.push({ name: call.name, ok: false, error: errorMessage }); onActivity?.([`⚙️ ใช้เครื่องมือ: ${call.name}`, `❌ Tool error: ${errorMessage.slice(0, 180)}`]);
             messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: errorMessage }) });
+          }
+        }
+        const shouldForceHealthCheck = /deploy|deployment|ดีพลอย|health|502|503|website|เว็บล่ม/i.test(prompt);
+        const healthTool = availableTools.find((candidate) => toolName(candidate) === "web_check");
+        if (shouldForceHealthCheck && healthTool && !toolResults.some((item) => item.name === "web_check")) {
+          const target = toolResults.filter((item) => item.ok).map((item) => extractPublicHttpsUrl(item.result)).find(Boolean);
+          if (target) {
+            try {
+              const output = await executeTool(healthTool, { url: target });
+              toolResults.push({ name: "web_check", ok: true, result: output });
+              onActivity?.([`🔎 ตรวจสุขภาพเว็บ: ${target}`, `👀 Observe: web_check ${String((output as Record<string, unknown>)?.status ?? "")}`]);
+              messages.push({ role: "tool", tool_call_id: `forced-web-check-${round}`, content: JSON.stringify({ ok: true, result: output }) });
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              toolResults.push({ name: "web_check", ok: false, error: errorMessage });
+              onActivity?.([`🔎 ตรวจสุขภาพเว็บ: ${target}`, `❌ web_check: ${errorMessage.slice(0, 180)}`]);
+              messages.push({ role: "tool", tool_call_id: `forced-web-check-${round}`, content: JSON.stringify({ ok: false, error: errorMessage }) });
+            }
           }
         }
       }
