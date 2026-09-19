@@ -222,7 +222,9 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
 }
 
 function isAutonomousRequest(prompt: string) {
-  return /(?:ทำเลย\s*:|ตรวจเว็บ|ตรวจโปรเจกต์|แก้.*deploy|deploy.*ไม่ผ่าน|deployment.*error|build.*ไม่ผ่าน|แก้.*500)/i.test(prompt);
+  // Coding and repair work should execute automatically. The user should
+  // not have to toggle Agents or learn a command syntax first.
+  return /(?:ทำเลย\s*:|แก้(?:โค้ด|code|บั๊ก|bug|error|ปัญหา)|debug|fix\s+(?:the\s+)?(?:code|bug|error|project|app)|ตรวจ(?:โค้ด|code|บั๊ก|bug|โปรเจกต์|project|เว็บ)|ตรวจเว็บ|ตรวจโปรเจกต์|โปรเจกต์.*(?:พัง|เสีย|ล่ม|error)|เว็บ.*(?:พัง|ล่ม|error|502|500)|deploy(?:ment)?(?:\s+)?(?:ไม่ผ่าน|พัง|ล่ม|error|failed)|build.*(?:ไม่ผ่าน|พัง|error|failed)|(?:500|502|503)\b|stack\s*trace|typescript\s*error|runtime\s*error)/i.test(prompt);
 }
 
 export async function runFleet(data: FleetRequest, onDelta?: (full: string) => void): Promise<ChatResult> {
