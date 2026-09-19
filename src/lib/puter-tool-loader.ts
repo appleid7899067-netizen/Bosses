@@ -86,6 +86,62 @@ function nativeSandboxTools(): CodingFleetTool[] {
   }];
 }
 
+
+function nativeWebTools(): CodingFleetTool[] {
+  return [{
+    name: "web_check",
+    description: "Check a deployed website URL over HTTPS. Return final URL, HTTP status, response time, redirect chain, content type, and a short body preview. Use this after deployment or when diagnosing 500/502/503/timeout issues.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        url: { type: "string", minLength: 8, maxLength: 2048 },
+        timeoutMs: { type: "integer", minimum: 1000, maximum: 30000 }
+      },
+      required: ["url"],
+      additionalProperties: false
+    }
+  }];
+}
+
+async function executeWebCheck(args: Record<string, unknown>): Promise<unknown> {
+  const rawUrl = String(args.url ?? "").trim();
+  if (!/^https:\/\//i.test(rawUrl)) throw new Error("web_check only accepts HTTPS URLs.");
+  let target: URL;
+  try { target = new URL(rawUrl); } catch { throw new Error("web_check received an invalid URL."); }
+  const timeoutMs = Math.min(30000, Math.max(1000, Number(args.timeoutMs ?? 15000)));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const started = Date.now();
+  try {
+    const response = await fetch(target.toString(), {
+      method: "GET",
+      redirect: "follow",
+      signal: controller.signal,
+      headers: { Accept: "text/html,application/json,text/plain;q=0.9,*/*;q=0.1", "User-Agent": "Bossnu-WebCheck/1.0" }
+    });
+    const text = await response.text();
+    return {
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      finalUrl: response.url,
+      responseTimeMs: Date.now() - started,
+      contentType: response.headers.get("content-type"),
+      contentLength: response.headers.get("content-length"),
+      bodyPreview: text.slice(0, 1200)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      status: 0,
+      responseTimeMs: Date.now() - started,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function nativeGitHubTools(): CodingFleetTool[] {
   return [
     { name: "github_get_repo", description: "Read public GitHub repository metadata. No GitHub credential is required for public repositories.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" } }, required: ["owner", "repo"], additionalProperties: false }, githubSource: true },
@@ -169,7 +225,7 @@ export async function loadCodingFleetTools(forceRefresh = false): Promise<Coding
   const codingFleet = sources[0].status === "fulfilled" ? sources[0].value : [];
   const pluginTools = sources[1].status === "fulfilled" ? sources[1].value : [];
   const mcpTools = sources[2].status === "fulfilled" ? sources[2].value : [];
-  const tools = [...codingFleet, ...pluginTools, ...nativeSandboxTools(), ...nativeGitHubTools(), ...mcpTools].slice(0, TOOL_LIMIT);
+  const tools = [...codingFleet, ...pluginTools, ...nativeSandboxTools(), ...nativeWebTools(), ...nativeGitHubTools(), ...mcpTools].slice(0, TOOL_LIMIT);
   if (tools.length > 0) { cachedTools = tools; cachedAt = Date.now(); return tools; }
   if (cachedTools) return cachedTools;
   throw new Error("No callable tools are available.");
@@ -183,7 +239,7 @@ function assistantToolMessage(response: unknown): Record<string, unknown> | null
 function resolveEndpoint(tool: CodingFleetTool): string | null { const candidate = tool.endpoint ?? tool.url; if (typeof candidate !== "string" || !candidate.trim()) return null; try { return new URL(candidate, `${CODINGFLEET_BASE}/`).toString(); } catch { return null; } }
 
 async function executePluginTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> { const endpoint = resolveEndpoint(tool); if (!endpoint) throw new Error(`Plugin ${toolName(tool)} has no callable endpoint.`); const method = String(tool.method ?? "POST").toUpperCase(); const response = await fetch(endpoint, { method, headers: { Accept: "application/json", "Content-Type": "application/json" }, ...(method === "GET" || method === "HEAD" ? {} : { body: JSON.stringify({ arguments: args }) }) }); const text = await response.text(); if (!response.ok) throw new Error(`Plugin ${String(tool.pluginName ?? toolName(tool))} returned HTTP ${response.status}: ${text.slice(0, 240)}`); try { return JSON.parse(text); } catch { return text; } }
-async function executeTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> { if (toolName(tool) === "sandbox_run") return executeSandboxTool(args); if (tool.githubSource) return executeGitHubTool(tool, args); if (tool.mcpServer) return callPublicMcpTool(tool, args); if (tool.pluginSource) return executePluginTool(tool, args); const endpoint = resolveEndpoint(tool); if (!endpoint) throw new Error(`Tool ${toolName(tool)} has no callable HTTPS endpoint.`); const response = await fetch(endpoint, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ tool: tool.slug ?? toolName(tool), arguments: args }) }); const text = await response.text(); if (!response.ok) throw new Error(`Tool ${toolName(tool)} returned HTTP ${response.status}: ${text.slice(0, 240)}`); try { return JSON.parse(text); } catch { return text; } }
+async function executeTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> { if (toolName(tool) === "sandbox_run") return executeSandboxTool(args); if (toolName(tool) === "web_check") return executeWebCheck(args); if (tool.githubSource) return executeGitHubTool(tool, args); if (tool.mcpServer) return callPublicMcpTool(tool, args); if (tool.pluginSource) return executePluginTool(tool, args); const endpoint = resolveEndpoint(tool); if (!endpoint) throw new Error(`Tool ${toolName(tool)} has no callable HTTPS endpoint.`); const response = await fetch(endpoint, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ tool: tool.slug ?? toolName(tool), arguments: args }) }); const text = await response.text(); if (!response.ok) throw new Error(`Tool ${toolName(tool)} returned HTTP ${response.status}: ${text.slice(0, 240)}`); try { return JSON.parse(text); } catch { return text; } }
 
 async function chatModel(messages: Array<Record<string, unknown>>, tools: CodingFleetTool[], model: string): Promise<{ text: string; response: unknown; toolCalls: ToolCall[] }> { const puter = await ensurePuter(); if (!puter.auth.isSignedIn()) await puter.auth.signIn(); const response = await puter.ai.chat(messages, { model, tools: toPuterTools(tools), normalize: true, stream: false }); return { text: extractText(response), response, toolCalls: extractToolCalls(response) }; }
 
