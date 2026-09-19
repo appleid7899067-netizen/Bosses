@@ -90,23 +90,16 @@ function ChatPage() {
     if (thread.tools.agents) activity.push("Agents ×" + AGENTS.length);
     thread.mcp.forEach((m) => activity.push("MCP " + m));
 
-    const traceTimer = { current: undefined as ReturnType<typeof setTimeout> | undefined };
-    const liveTrace = ["🔍 วิเคราะห์คำขอ", "🧰 เลือกเครื่องมือ", "⚙️ กำลังทำงาน"];
+    const liveTrace = [...activity, "🔍 วิเคราะห์คำขอ"];
     const assistantId = appendMessage(thread.id, {
       role: "assistant",
       content: "",
       model: modelById(modelId).id,
-      activity: [...activity, ...liveTrace.slice(0, 1)],
+      activity: liveTrace,
     });
-    const scheduleTrace = (index: number) => {
-      if (index >= liveTrace.length) return;
-      traceTimer.current = setTimeout(() => {
-        patchActivity(thread.id, assistantId, [...activity, ...liveTrace.slice(0, index + 1)]);
-        scheduleTrace(index + 1);
-      }, 900);
+    const pushActivity = (next: string[]) => {
+      patchActivity(thread.id, assistantId, next);
     };
-    scheduleTrace(1);
-
     try {
       const history = thread.messages
         .filter((m) => m.content.trim())
@@ -129,6 +122,7 @@ function ChatPage() {
           history,
         },
         (full) => patchMessage(thread.id, assistantId, full),
+        pushActivity,
       );
       if (!res.ok) {
         if (res.activity) patchActivity(thread.id, assistantId, res.activity);
@@ -146,7 +140,6 @@ function ChatPage() {
         err instanceof Error ? err.message : "Chat failed",
       );
     } finally {
-      if (traceTimer.current) clearTimeout(traceTimer.current);
       setBusy(false);
       requestAnimationFrame(() => {
         scroller.current?.scrollTo({ top: scroller.current.scrollHeight, behavior: "smooth" });
