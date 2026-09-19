@@ -141,7 +141,8 @@ const TOOLS: ToolDef[] = [
         additionalProperties: false,
       },
     },
-    {
+  },
+  {
       type: "function",
       function: {
         name: "github_dispatch_workflow",
