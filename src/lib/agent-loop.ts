@@ -120,6 +120,7 @@ Verification gate: external mutation is expected. You MUST use an actual verific
     }
     const failedResults = result.toolResults.filter((item) => !item.ok);
     const verificationResults = result.toolResults.filter((item) => isVerificationToolCall(item.name));
+    const verificationFailed = verificationResults.length > 0 && !verification.passed;
     if (verificationResults.length) {
       steps.push({ phase: "observe", detail: `Verification observations: ${verificationResults.map((item) => `${item.name}=${item.ok ? "passed" : "failed"}`).join(", ")}` });
     }
@@ -127,6 +128,7 @@ Verification gate: external mutation is expected. You MUST use an actual verific
       steps.push({ phase: "refine", detail: `Verification ไม่ผ่าน: ${verificationResults.filter((item) => !item.ok).map((item) => `${item.name}: ${String(item.error ?? "ไม่ผ่าน").slice(0, 180)}`).join(" | ")}` });
     }
     const failedTools = failedResults.map((item) => `${item.name} (failures: ${toolFailureCounts.get(item.name) ?? 1}): ${String(item.error ?? "unknown error").slice(0, 800)}`);
+    const verificationIssue = verificationFailed ? `Verification evidence failed: ${verification.evidence}` : "";
     if (failedResults.length) {
       failedToolStreak += 1;
       for (const item of failedResults) {
@@ -151,6 +153,7 @@ ${last.slice(-12000)}
 
 Actual failed tools from this round:
 ${failedTools.length ? failedTools.join("\n") : "ไม่มี"}
+${verificationIssue}
 
 Continue from the actual observations above. For every failed tool, diagnose the concrete error, make the smallest safe repair when appropriate, then rerun the relevant tool. If verification fails, diagnose and repair the root cause. Do not stop merely because a file was changed. Do not claim success until verification evidence exists.`;
   }
