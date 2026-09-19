@@ -199,7 +199,7 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
   if (edits.length !== plan.files.length) return { ok: false, error: "Autonomous plan contained an unsafe or oversized file edit; no files were written." };
 
   const changed: string[] = [];
-  let lastCommitSha = "";
+  const commitShas: string[] = [];
   const activity = ["🔍 วิเคราะห์", "🧰 เลือกเครื่องมือ", "⚙️ ลงมือทำ"];
   onActivity?.([...activity]);
   for (const edit of edits) {
@@ -210,28 +210,36 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
       ...(current?.sha ? { sha: current.sha } : {}),
     } });
     changed.push(`${edit.path} (${result?.commit?.sha ? result.commit.sha.slice(0, 7) : "committed"})`);
-    lastCommitSha = result?.commit?.sha || lastCommitSha;
+    if (result?.commit?.sha) commitShas.push(result.commit.sha);
     onActivity?.([...activity, "✏️ แก้ไข/บันทึกไฟล์", ...changed.map((item) => `↳ ${item}`)]);
   }
 
   onActivity?.([...activity, ...(changed.length ? ["✏️ แก้ไข/บันทึกไฟล์"] : ["📖 ตรวจสอบโดยไม่แก้ไฟล์"]), "🧪 ตรวจสอบ GitHub Actions"]);
   onActivity?.([...activity, "🧪 ตรวจสอบ GitHub Actions", "⏳ รอ CI ของ commit ล่าสุด"]);
   let actions = await getGitHubActions({ data: { owner: "appleid7899067-netizen", repo: "Bosses" } }).catch((error) => ({ total_count: 0, workflow_runs: [], error: error instanceof Error ? error.message : "Actions check failed" }));
-  let latest = actions.workflow_runs?.slice(0, 10) ?? [];
-  for (let attempt = 0; changed.length && attempt < 20; attempt += 1) {
-    const candidate = latest.find((run) => run.head_sha === lastCommitSha);
-    if (candidate?.status === "completed") break;
+  let latest = actions.workflow_runs?.slice(0, 20) ?? [];
+  let verifiedRuns = commitShas.map((sha) => latest.find((run) => run.head_sha === sha)).filter(Boolean);
+  for (let attempt = 0; commitShas.length && attempt < 30; attempt += 1) {
+    verifiedRuns = commitShas.map((sha) => latest.find((run) => run.head_sha === sha)).filter(Boolean);
+    const pending = verifiedRuns.some((run) => run.status !== "completed") || verifiedRuns.length < commitShas.length;
+    if (!pending) break;
     await new Promise((resolve) => setTimeout(resolve, 3000));
     actions = await getGitHubActions({ data: { owner: "appleid7899067-netizen", repo: "Bosses" } }).catch((error) => ({ total_count: 0, workflow_runs: [], error: error instanceof Error ? error.message : "Actions check failed" }));
-    latest = actions.workflow_runs?.slice(0, 10) ?? [];
+    latest = actions.workflow_runs?.slice(0, 20) ?? [];
   }
-  const latestRun = latest.find((run) => run.head_sha === lastCommitSha);
-  if (changed.length && latestRun && latestRun.status === "completed" && latestRun.conclusion !== "success") {
-    return { ok: false, error: `แก้ไฟล์แล้ว แต่ verification ไม่ผ่าน: ${latestRun.name} ${latestRun.conclusion}` };
+  const failedRun = commitShas.map((sha) => latest.find((run) => run.head_sha === sha)).find((run) => run?.status === "completed" && run.conclusion !== "success");
+  const missingRun = commitShas.find((sha) => !latest.some((run) => run.head_sha === sha));
+  const pendingRun = commitShas.find((sha) => {
+    const run = latest.find((item) => item.head_sha === sha);
+    return run && run.status !== "completed";
+  });
+  if (failedRun) {
+    return { ok: false, error: `แก้ไฟล์แล้ว แต่ verification ไม่ผ่านสำหรับ commit ${failedRun.head_sha.slice(0, 7)}: ${failedRun.name} ${failedRun.conclusion}` };
   }
-  if (changed.length && latestRun?.status !== "completed") {
-    return { ok: false, error: `แก้ไฟล์แล้ว แต่ยังไม่พบ CI ที่เสร็จสมบูรณ์สำหรับ commit ${lastCommitSha.slice(0, 7) || "ล่าสุด"} จึงยังไม่รายงานว่างานเสร็จ` };
+  if (missingRun || pendingRun) {
+    return { ok: false, error: `แก้ไฟล์แล้ว แต่ยังยืนยัน CI ไม่ครบทุก commit: ${(missingRun || pendingRun || "").slice(0, 7)}` };
   }
+  const latestRun = verifiedRuns[verifiedRuns.length - 1];
   activity.push(changed.length ? "✏️ แก้ไข/บันทึกไฟล์" : "📖 ตรวจสอบโดยไม่แก้ไฟล์");
   activity.push("🧪 ตรวจสอบ GitHub Actions");
   if (latestRun?.status === "completed" && latestRun.conclusion === "success") activity.push(`✅ Verification ผ่าน (${latestRun.head_sha.slice(0, 7)})`);
