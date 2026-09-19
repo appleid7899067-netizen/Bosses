@@ -1,4 +1,4 @@
-import { callWithFallback, type CodingFleetTool } from "@/lib/puter-tool-loader";
+import { callWithFallback, type CodingFleetTool, type ToolExecutionResult } from "@/lib/puter-tool-loader";
 import { runInSandbox, type SandboxResult } from "@/lib/sandbox";
 import { discoverMCPTools } from "@/lib/mcp";
 
@@ -22,6 +22,33 @@ function isVerificationToolCall(name: string): boolean {
   return /(^|_)(test|verify|verification|build|ci|check|status|health|deploy|sandbox|web|http)(_|$)/i.test(name);
 }
 
+function verificationPassed(results: ToolExecutionResult[]): { passed: boolean; evidence: string } {
+  const checks = results.filter((item) => isVerificationToolCall(item.name));
+  if (!checks.length) return { passed: false, evidence: "ยังไม่มีผลลัพธ์จาก verification tool" };
+  for (const check of checks) {
+    if (!check.ok) continue;
+    const value = check.result;
+    if (check.name === "web_check" && value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      const status = Number(record.status ?? 0);
+      if (record.ok === true && status >= 200 && status < 300) return { passed: true, evidence: `web_check ผ่าน HTTP ${status}` };
+    }
+    if (check.name === "sandbox_run" && value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if (record.ok === true && (record.exitCode === undefined || record.exitCode === 0)) return { passed: true, evidence: "sandbox_run ผ่านและไม่มี exit error" };
+    }
+    if (/workflow|actions|ci|build|deploy|check|status/i.test(check.name) && value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if (record.verified === true || (record.status === "completed" && record.conclusion === "success") || record.success === true) return { passed: true, evidence: `${check.name} รายงานผลสำเร็จจาก tool จริง` };
+    }
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      if (record.verified === true || record.success === true) return { passed: true, evidence: `${check.name} รายงานผล verified/success จาก tool จริง` };
+    }
+  }
+  return { passed: false, evidence: "verification tool ทำงานแล้ว แต่ผลจริงยังไม่ผ่านเกณฑ์" };
+}
+
 /** Plan → Select → Act → Observe → Refine → Verify. */
 export async function runAgentLoop(prompt: string, tools: CodingFleetTool[], maxIterations = 6): Promise<AgentRunResult> {
   const steps: AgentStep[] = [
@@ -41,6 +68,7 @@ Never claim an external action succeeded without evidence.`;
   let last = "";
   let hadToolActivity = false;
   let hadVerificationActivity = false;
+  let verificationPassedEvidence = "";
   const mutationExpected = looksLikeMutation(prompt);
 
   for (let iteration = 0; iteration < Math.max(1, Math.min(maxIterations, 8)); iteration += 1) {
@@ -52,10 +80,12 @@ Never claim an external action succeeded without evidence.`;
     }
     last = result.text;
     hadToolActivity ||= result.toolCalls.length > 0;
-    hadVerificationActivity ||= result.toolCalls.some((call) => isVerificationToolCall(call.name));
+    hadVerificationActivity ||= result.toolResults.some((item) => isVerificationToolCall(item.name));
+    const verification = verificationPassed(result.toolResults);
+    if (verification.passed) verificationPassedEvidence = verification.evidence;
     steps.push({ phase: "observe", detail: `รอบที่ ${iteration + 1}: ได้ผลลัพธ์และ ${result.toolCalls.length} tool call` });
     if (!result.toolCalls.length) {
-      if (mutationExpected && !hadVerificationActivity) {
+      if (mutationExpected && !verificationPassedEvidence) {
         steps.push({ phase: "verify", detail: "ยังไม่มีหลักฐานจาก verification tool หลังมีการเปลี่ยนแปลง จึงบังคับให้ Agent ตรวจซ้ำ" });
         if (iteration === Math.min(maxIterations, 8) - 1) {
           return { ok: false, text: last, steps, verified: false };
@@ -66,8 +96,8 @@ Never claim an external action succeeded without evidence.`;
 Verification gate: external mutation is expected. You MUST use an actual verification/status/test/build/CI/deploy tool and report its concrete result before finishing. Do not answer with a success claim without that evidence.`;
         continue;
       }
-      steps.push({ phase: "verify", detail: mutationExpected ? "พบหลักฐานจาก verification tool แล้ว" : "ไม่มี external mutation ที่ต้องตรวจเพิ่ม" });
-      return { ok: true, text: last, steps, verified: true };
+      steps.push({ phase: "verify", detail: mutationExpected ? `Verification gate: ${verificationPassedEvidence || "ยังไม่มีหลักฐาน"}` : "ไม่มี external mutation ที่ต้องตรวจเพิ่ม" });
+      return { ok: true, text: last, steps, verified: !mutationExpected || Boolean(verificationPassedEvidence) };
     }
     if (iteration === Math.min(maxIterations, 8) - 1) {
       steps.push({ phase: "verify", detail: "หมดรอบซ่อมที่กำหนด จึงยังไม่ประกาศว่าสำเร็จ" });
