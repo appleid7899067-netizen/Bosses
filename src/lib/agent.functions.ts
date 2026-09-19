@@ -18,7 +18,8 @@ export const runAgent = createServerFn({ method: "POST" })
     const selectedNames = selected.slice(0, 8).map((tool) => String(tool.name ?? "")).filter(Boolean);
     const registryStep = { phase: "plan" as const, detail: `Tool Registry selected ${selectedNames.length} tools: ${selectedNames.join(", ")}` };
 
-    if (prefersAuthenticatedGitHub(data.prompt)) {
+    const registryHasGitHub = selected.some((tool) => String(tool.name ?? "").toLowerCase().includes("github"));
+    if (registryHasGitHub && prefersAuthenticatedGitHub(data.prompt)) {
       const result = await runGitHubAgent(data.prompt);
       if (result.ok) {
         const verificationStep = result.verified
