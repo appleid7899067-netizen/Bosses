@@ -221,7 +221,7 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
   let verifiedRuns = commitShas.map((sha) => latest.find((run) => run.head_sha === sha)).filter(Boolean);
   for (let attempt = 0; commitShas.length && attempt < 30; attempt += 1) {
     verifiedRuns = commitShas.map((sha) => latest.find((run) => run.head_sha === sha)).filter(Boolean);
-    const pending = verifiedRuns.some((run) => run.status !== "completed") || verifiedRuns.length < commitShas.length;
+    const pending = verifiedRuns.some((run) => run?.status !== "completed") || verifiedRuns.length < commitShas.length;
     if (!pending) break;
     await new Promise((resolve) => setTimeout(resolve, 3000));
     actions = await getGitHubActions({ data: { owner: "appleid7899067-netizen", repo: "Bosses" } }).catch((error) => ({ total_count: 0, workflow_runs: [], error: error instanceof Error ? error.message : "Actions check failed" }));
