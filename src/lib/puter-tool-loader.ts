@@ -1,6 +1,6 @@
 import { ensurePuter, extractText } from "@/lib/puter";
 
-type CodingFleetTool = {
+export type CodingFleetTool = {
   name?: string;
   id?: string;
   slug?: string;
@@ -186,7 +186,7 @@ export async function callWithFallback(prompt: string, tools: CodingFleetTool[],
           }
         }
       }
-      return { ok: true, text: "Agent reached the tool-round limit before producing a final answer.", model, toolCalls: [] };
+      return { ok: false, error: `Agent reached the ${MAX_TOOL_ROUNDS}-round tool limit without producing a final answer.` };
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error);
     }
