@@ -74,8 +74,6 @@ Never claim an external action succeeded without evidence.`;
   const repairedToolNames = new Set<string>();
   const toolFailureCounts = new Map<string, number>();
   const mutationExpected = looksLikeMutation(prompt);
-  const publicUrls = prompt.match(/https:\/\/[^\s)\]}>,]+/gi) ?? [];
-  const healthTarget = publicUrls[0] ?? "";
 
   for (let iteration = 0; iteration < Math.max(1, Math.min(maxIterations, 8)); iteration += 1) {
     steps.push({ phase: "act", detail: `รอบที่ ${iteration + 1}: ลงมือทำผ่านเครื่องมือ` });
