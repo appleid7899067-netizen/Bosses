@@ -109,13 +109,23 @@ Verification gate: external mutation is expected. You MUST use an actual verific
       steps.push({ phase: "verify", detail: "หมดรอบซ่อมที่กำหนด จึงยังไม่ประกาศว่าสำเร็จ" });
       return { ok: false, text: last, steps, verified: false };
     }
-    steps.push({ phase: "refine", detail: "นำผลจริงกลับไปให้ Agent วิเคราะห์และแก้ต่อ" });
+    const failedTools = result.toolResults
+      .filter((item) => !item.ok)
+      .map((item) => `${item.name}: ${String(item.error ?? "unknown error").slice(0, 800)}`);
+    if (failedTools.length) {
+      steps.push({ phase: "refine", detail: `พบ Tool ล้มเหลว ${failedTools.length} รายการ: บังคับวิเคราะห์สาเหตุและซ่อมต่อ` });
+    } else {
+      steps.push({ phase: "refine", detail: "นำผลจริงกลับไปให้ Agent วิเคราะห์และแก้ต่อ" });
+    }
     currentPrompt = `${prompt}
 
 Previous agent output:
 ${last.slice(-12000)}
 
-Continue from the actual observations above. If work changed external state, verify it now. If verification fails, diagnose and repair the root cause. Do not stop merely because a file was changed.`;
+Actual failed tools from this round:
+${failedTools.length ? failedTools.join("\n") : "ไม่มี"}
+
+Continue from the actual observations above. For every failed tool, diagnose the concrete error, make the smallest safe repair when appropriate, then rerun the relevant tool. If verification fails, diagnose and repair the root cause. Do not stop merely because a file was changed. Do not claim success until verification evidence exists.`;
   }
   return { ok: false, text: last, steps, verified: false };
 }
