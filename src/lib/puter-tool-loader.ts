@@ -266,6 +266,10 @@ export async function callWithFallback(prompt: string, tools: CodingFleetTool[],
       const availableTools = tools.slice(0, TOOL_LIMIT);
       const system = ["You are Bossnu SlieLo Agent. Use available tools when they materially improve the answer. Never claim an external action succeeded unless the tool returned success.", "Available tools:", toolSummary(availableTools)].join("\n");
       const toolResults: ToolExecutionResult[] = [];
+      const messages: Array<Record<string, unknown>> = [
+        { role: "system", content: system },
+        { role: "user", content: prompt },
+      ];
       for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
         const result = await chatModel(messages, availableTools, model);
         if (!result.toolCalls.length) return { ok: true, text: result.text, model, toolCalls: [], toolResults };
