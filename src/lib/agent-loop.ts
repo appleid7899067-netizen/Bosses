@@ -64,6 +64,7 @@ MCP tools discovered: ${mcpCount}.
 Task mutation expected: ${looksLikeMutation(prompt)}.
 Verification requested or required: ${looksLikeVerification(prompt)}. For deployed URLs, prefer web_check and treat HTTP 2xx as healthy; 5xx or timeout means verification failed and should trigger diagnosis/repair.
 Use the selected tools. If a tool fails, diagnose from its actual output and repair instead of guessing.
+For deployment or website health tasks, if a public HTTPS URL is available, MUST call web_check after the deploy/build step. Treat HTTP 2xx as healthy; HTTP 4xx/5xx, timeout, redirect failure, or tool error as a failed verification that must enter the repair loop.
 Never claim an external action succeeded without evidence.`;
   let last = "";
   let hadToolActivity = false;
