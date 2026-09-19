@@ -211,9 +211,8 @@ async function runAutonomousAgent(data: FleetRequest, onDelta?: (full: string) =
 
   let actions = await getGitHubActions({ data: { owner: "appleid7899067-netizen", repo: "Bosses" } }).catch((error) => ({ total_count: 0, workflow_runs: [], error: error instanceof Error ? error.message : "Actions check failed" }));
   let latest = actions.workflow_runs?.slice(0, 3) ?? [];
-  const targetSha = changed.length ? changed[changed.length - 1].match(/\(([0-9a-f]{7,})\)$/)?.[1] : undefined;
   for (let attempt = 0; changed.length && attempt < 10; attempt += 1) {
-    const candidate = latest.find((run) => !targetSha || String(run.head_sha ?? "").startsWith(targetSha));
+    const candidate = latest[0];
     if (candidate?.status === "completed") break;
     await new Promise((resolve) => setTimeout(resolve, 3000));
     actions = await getGitHubActions({ data: { owner: "appleid7899067-netizen", repo: "Bosses" } }).catch((error) => ({ total_count: 0, workflow_runs: [], error: error instanceof Error ? error.message : "Actions check failed" }));
