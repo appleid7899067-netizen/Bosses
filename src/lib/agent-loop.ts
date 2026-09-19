@@ -19,7 +19,7 @@ function looksLikeVerification(prompt: string): boolean {
 }
 
 function isVerificationToolCall(name: string): boolean {
-  return /(^|_)(test|verify|verification|build|ci|check|status|health|deploy)(_|$)/i.test(name);
+  return /(^|_)(test|verify|verification|build|ci|check|status|health|deploy|sandbox)(_|$)/i.test(name);
 }
 
 /** Plan → Select → Act → Observe → Refine → Verify. */
