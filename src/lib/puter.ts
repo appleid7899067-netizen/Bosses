@@ -89,7 +89,7 @@ export function extractText(value: unknown): string {
 }
 
 export type ChatTurn = { role: "system" | "user" | "assistant"; content: string };
-export type ChatResult = { ok: true; text: string; model: string } | { ok: false; error: string };
+export type ChatResult = { ok: true; text: string; model: string; activity?: string[] } | { ok: false; error: string; activity?: string[] };
 
 function withCredentialPolicy(messages: ChatTurn[]): ChatTurn[] {
   const index = messages.findIndex((m) => m.role === "system");
