@@ -69,6 +69,8 @@ Never claim an external action succeeded without evidence.`;
   let hadToolActivity = false;
   let hadVerificationActivity = false;
   let verificationPassedEvidence = "";
+  let failedToolStreak = 0;
+  const repairedToolNames = new Set<string>();
   const mutationExpected = looksLikeMutation(prompt);
 
   for (let iteration = 0; iteration < Math.max(1, Math.min(maxIterations, 8)); iteration += 1) {
@@ -109,15 +111,22 @@ Verification gate: external mutation is expected. You MUST use an actual verific
       steps.push({ phase: "verify", detail: "หมดรอบซ่อมที่กำหนด จึงยังไม่ประกาศว่าสำเร็จ" });
       return { ok: false, text: last, steps, verified: false };
     }
-    const failedTools = result.toolResults
-      .filter((item) => !item.ok)
-      .map((item) => `${item.name}: ${String(item.error ?? "unknown error").slice(0, 800)}`);
+    const failedResults = result.toolResults.filter((item) => !item.ok);
+    const failedTools = failedResults.map((item) => `${item.name}: ${String(item.error ?? "unknown error").slice(0, 800)}`);
+    if (failedResults.length) {
+      failedToolStreak += 1;
+      for (const item of failedResults) repairedToolNames.add(item.name);
+    } else {
+      failedToolStreak = 0;
+    }
     if (failedTools.length) {
-      steps.push({ phase: "refine", detail: `พบ Tool ล้มเหลว ${failedTools.length} รายการ: บังคับวิเคราะห์สาเหตุและซ่อมต่อ` });
+      steps.push({ phase: "refine", detail: `พบ Tool ล้มเหลว ${failedTools.length} รายการ: บังคับวิเคราะห์สาเหตุและซ่อมต่อ (streak ${failedToolStreak})` });
     } else {
       steps.push({ phase: "refine", detail: "นำผลจริงกลับไปให้ Agent วิเคราะห์และแก้ต่อ" });
     }
     currentPrompt = `${prompt}
+
+Repair context: ${repairedToolNames.size ? `เครื่องมือที่เคยพลาดและต้องติดตาม: ${Array.from(repairedToolNames).join(", ")}` : "ยังไม่มี"}.
 
 Previous agent output:
 ${last.slice(-12000)}
