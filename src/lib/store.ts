@@ -76,6 +76,7 @@ type FleetState = {
     msg: Omit<ChatMessage, "id" | "createdAt"> & { id?: string },
   ) => string;
   patchMessage: (threadId: string, messageId: string, content: string) => void;
+  patchActivity: (threadId: string, messageId: string, activity: string[]) => void;
   updateTools: (threadId: string, tools: ChatThread["tools"]) => void;
   toggleMcp: (threadId: string, id: string) => void;
   addGeneration: (g: Omit<Generation, "id" | "createdAt">) => void;
@@ -210,6 +211,14 @@ export const useFleet = create<FleetState>()(
               updatedAt: Date.now(),
               messages: t.messages.map((m) => (m.id === messageId ? { ...m, content } : m)),
             };
+          }),
+        }),
+      patchActivity: (threadId, messageId, activity) =>
+        set({
+          threads: get().threads.map((t) => t.id !== threadId ? t : {
+            ...t,
+            updatedAt: Date.now(),
+            messages: t.messages.map((m) => m.id === messageId ? { ...m, activity } : m),
           }),
         }),
       updateTools: (threadId, tools) =>
