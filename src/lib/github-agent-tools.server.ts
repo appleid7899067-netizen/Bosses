@@ -233,6 +233,8 @@ async function runModel(prompt: string, model: string): Promise<AgentResult> {
     { role: "user", content: prompt },
   ];
   const allCalls: ToolCall[] = [];
+  let mutationOccurred = false;
+  let verified = false;
 
   for (let round = 0; round < MAX_ROUNDS; round += 1) {
     const response = await puter.ai.chat(messages, { model, tools: TOOLS, normalize: true, stream: false });
@@ -243,6 +245,8 @@ async function runModel(prompt: string, model: string): Promise<AgentResult> {
     if (!calls.length) return { ok: true, text: extractText(response), toolCalls: allCalls };
 
     for (const call of calls) {
+      if (["github_write_file", "github_create_branch", "github_create_pull_request", "github_create_issue", "github_dispatch_workflow"].includes(call.name)) mutationOccurred = true;
+      if (["github_get_file", "github_actions"].includes(call.name)) verified = true;
       try {
         const result = await execute(call.name, call.arguments);
         messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
