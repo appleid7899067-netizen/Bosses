@@ -108,6 +108,19 @@ async function executeWebCheck(args: Record<string, unknown>): Promise<unknown> 
   if (!/^https:\/\//i.test(rawUrl)) throw new Error("web_check only accepts HTTPS URLs.");
   let target: URL;
   try { target = new URL(rawUrl); } catch { throw new Error("web_check received an invalid URL."); }
+  if (target.username || target.password) throw new Error("web_check does not allow URL credentials.");
+  const hostname = target.hostname.toLowerCase().replace(/\\.$/, "");
+  const blockedHostnames = new Set(["localhost", "localhost.localdomain", "ip6-localhost", "metadata.google.internal"]);
+  const isPrivateIpv4 = (host: string) => {
+    const parts = host.split(".").map(Number);
+    if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+    const [a, b] = parts;
+    return a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+  };
+  const isPrivateIpv6 = (host: string) => host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe8") || host.startsWith("fe9") || host.startsWith("fea") || host.startsWith("feb");
+  if (blockedHostnames.has(hostname) || hostname.endsWith(".local") || isPrivateIpv4(hostname) || isPrivateIpv6(hostname)) {
+    throw new Error("web_check blocked a private, local, or metadata host.");
+  }
   const timeoutMs = Math.min(30000, Math.max(1000, Number(args.timeoutMs ?? 15000)));
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
