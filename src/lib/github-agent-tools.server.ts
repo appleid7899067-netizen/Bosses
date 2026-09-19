@@ -242,7 +242,13 @@ async function runModel(prompt: string, model: string): Promise<AgentResult> {
     allCalls.push(...calls);
     const message = assistantMessage(response);
     if (message) messages.push(message);
-    if (!calls.length) return { ok: true, text: extractText(response), toolCalls: allCalls };
+    if (!calls.length) {
+      if (mutationOccurred && !verified) {
+        messages.push({ role: "user", content: "You changed repository state but have not verified the result yet. Continue by checking the changed file and/or GitHub Actions. Do not give a final success message until verification succeeds." });
+        continue;
+      }
+      return { ok: true, text: extractText(response), toolCalls: allCalls };
+    }
 
     for (const call of calls) {
       if (["github_write_file", "github_create_branch", "github_create_pull_request", "github_create_issue", "github_dispatch_workflow"].includes(call.name)) mutationOccurred = true;
