@@ -283,7 +283,7 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
       const fleet = await callWithFallback(prompt, tools, data.modelId ? [data.modelId, "gpt-4o", "gemini-2.5-pro"] : undefined);
       if (fleet.ok) {
         onDelta?.(fleet.text);
-        return { ok: true, text: fleet.text, model: fleet.model, activity: ["🧠 วิเคราะห์", "🧰 Tool Registry", "⚙️ ประมวลผล", "👀 Observe", "✅ ส่งผลลัพธ์"] };
+        const toolNames = fleet.toolCalls.map((call) => call.name).filter(Boolean).slice(0, 8); const activity = ["🧠 วิเคราะห์", "🧰 Tool Registry", ...(toolNames.length ? [`⚙️ ใช้เครื่องมือ: ${toolNames.join(", ")}`] : ["⚙️ ประมวลผล"]), ...(fleet.toolResults.length ? [`👀 Observe: ${fleet.toolResults.filter((item) => item.ok).length}/${fleet.toolResults.length} ผ่าน`] : []), "✅ ส่งผลลัพธ์"]; onActivity?.(activity); return { ok: true, text: fleet.text, model: fleet.model, activity };
       }
     }
   } catch {
