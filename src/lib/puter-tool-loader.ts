@@ -214,7 +214,8 @@ async function loadPublicMcpTools(): Promise<CodingFleetTool[]> {
 
 async function readJsonRpcResponse(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text(); const trimmed = text.trim(); if (!trimmed) return {};
-  if (trimmed.startsWith("data:")) { const line = trimmed.split(/\r?\n/).find((x) => x.startsWith("data:")); if (line) return JSON.parse(line.slice(5).trim()) as Record<string, unknown>; }
+  if (trimmed.startsWith("data:")) { const line = trimmed.split(/\r?
+/).find((x) => x.startsWith("data:")); if (line) return JSON.parse(line.slice(5).trim()) as Record<string, unknown>; }
   return JSON.parse(trimmed) as Record<string, unknown>;
 }
 
@@ -247,7 +248,8 @@ export async function loadCodingFleetTools(forceRefresh = false): Promise<Coding
 }
 
 function toPuterTools(tools: CodingFleetTool[]): PuterFunctionTool[] { return tools.slice(0, TOOL_LIMIT).map((tool) => { const name = toolName(tool); if (!name) return null; return { type: "function" as const, function: { name, description: String(tool.description ?? `Tool: ${name}`), parameters: toolParameters(tool) } }; }).filter((tool): tool is PuterFunctionTool => tool !== null); }
-function toolSummary(tools: CodingFleetTool[]): string { return tools.slice(0, TOOL_LIMIT).map((tool) => JSON.stringify({ name: toolName(tool), description: tool.description, input_schema: toolParameters(tool) })).join("\n"); }
+function toolSummary(tools: CodingFleetTool[]): string { return tools.slice(0, TOOL_LIMIT).map((tool) => JSON.stringify({ name: toolName(tool), description: tool.description, input_schema: toolParameters(tool) })).join("
+"); }
 function parseArguments(value: unknown): Record<string, unknown> { if (value && typeof value === "object" && !Array.isArray(value)) return value as Record<string, unknown>; if (typeof value === "string") { try { const p = JSON.parse(value); if (p && typeof p === "object" && !Array.isArray(p)) return p as Record<string, unknown>; } catch {} } return {}; }
 function extractToolCalls(value: unknown): ToolCall[] { const response = value as Record<string, unknown> | null; const message = response?.message as Record<string, unknown> | undefined; const raw = message?.tool_calls ?? response?.tool_calls ?? response?.toolCalls; if (!Array.isArray(raw)) return []; return raw.flatMap((item) => { if (!item || typeof item !== "object") return []; const call = item as Record<string, unknown>; const fn = call.function as Record<string, unknown> | undefined; const name = String(fn?.name ?? call.name ?? "").trim(); return name ? [{ id: typeof call.id === "string" ? call.id : undefined, name, arguments: parseArguments(fn?.arguments ?? call.arguments ?? call.input) }] : []; }); }
 function assistantToolMessage(response: unknown): Record<string, unknown> | null { const message = (response as Record<string, unknown> | null)?.message; return message && typeof message === "object" ? message as Record<string, unknown> : null; }
@@ -258,14 +260,19 @@ async function executeTool(tool: CodingFleetTool, args: Record<string, unknown>)
 
 async function chatModel(messages: Array<Record<string, unknown>>, tools: CodingFleetTool[], model: string): Promise<{ text: string; response: unknown; toolCalls: ToolCall[] }> { const puter = await ensurePuter(); if (!puter.auth.isSignedIn()) await puter.auth.signIn(); const response = await puter.ai.chat(messages, { model, tools: toPuterTools(tools), normalize: true, stream: false }); return { text: extractText(response), response, toolCalls: extractToolCalls(response) }; }
 
-export type ToolExecutionResult = { name: string; ok: boolean; result?: unknown; error?: string };\n\nexport async function callWithFallback(prompt: string, tools: CodingFleetTool[], models: readonly string[] = DEFAULT_MODELS): Promise<{ ok: true; text: string; model: string; toolCalls: ToolCall[]; toolResults: ToolExecutionResult[] } | { ok: false; error: string }> {
+export type ToolExecutionResult = { name: string; ok: boolean; result?: unknown; error?: string };
+
+export async function callWithFallback(prompt: string, tools: CodingFleetTool[], models: readonly string[] = DEFAULT_MODELS): Promise<{ ok: true; text: string; model: string; toolCalls: ToolCall[]; toolResults: ToolExecutionResult[] } | { ok: false; error: string }> {
   let lastError = "No model succeeded.";
   for (const model of models) {
     try {
       const availableTools = tools.slice(0, TOOL_LIMIT);
-      const system = ["You are Bossnu SlieLo Agent. Use available tools when they materially improve the answer. Never claim an external action succeeded unless the tool returned success.", "Available tools:", toolSummary(availableTools)].join("\n\n");
+      const system = ["You are Bossnu SlieLo Agent. Use available tools when they materially improve the answer. Never claim an external action succeeded unless the tool returned success.", "Available tools:", toolSummary(availableTools)].join("
+
+");
       const messages: Array<Record<string, unknown>> = [{ role: "system", content: system }, { role: "user", content: prompt }];
-      const toolResults: ToolExecutionResult[] = [];\n      for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      const toolResults: ToolExecutionResult[] = [];
+      for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
         const result = await chatModel(messages, availableTools, model);
         if (!result.toolCalls.length) return { ok: true, text: result.text, model, toolCalls: [], toolResults };
         const assistantMessage = assistantToolMessage(result.response);
@@ -278,9 +285,12 @@ export type ToolExecutionResult = { name: string; ok: boolean; result?: unknown;
           }
           try {
             const output = await executeTool(tool, call.arguments);
-            toolResults.push({ name: call.name, ok: true, result: output });\n            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: true, result: output }) });
+            toolResults.push({ name: call.name, ok: true, result: output });
+            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: true, result: output }) });
           } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);\n            toolResults.push({ name: call.name, ok: false, error: errorMessage });\n            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: errorMessage }) });
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            toolResults.push({ name: call.name, ok: false, error: errorMessage });
+            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: errorMessage }) });
           }
         }
       }
