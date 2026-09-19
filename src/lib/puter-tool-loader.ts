@@ -214,7 +214,8 @@ async function loadPublicMcpTools(): Promise<CodingFleetTool[]> {
 
 async function readJsonRpcResponse(response: Response): Promise<Record<string, unknown>> {
   const text = await response.text(); const trimmed = text.trim(); if (!trimmed) return {};
-  if (trimmed.startsWith("data:")) { const line = trimmed.split("\n").find((x) => x.startsWith("data:")); if (line) return JSON.parse(line.slice(5).trim()) as Record<string, unknown>; }\n  return JSON.parse(trimmed) as Record<string, unknown>;
+  if (trimmed.startsWith("data:")) { const line = trimmed.split("\n").find((x) => x.startsWith("data:")); if (line) return JSON.parse(line.slice(5).trim()) as Record<string, unknown>; }
+  return JSON.parse(trimmed) as Record<string, unknown>;
 }
 
 async function callPublicMcpTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> {
