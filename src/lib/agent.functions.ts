@@ -1,1 +1,42 @@
-import { createServerFn } from "@tanstack/react-start";\nimport { z } from "zod";\nimport { selectToolsForTask } from "@/lib/tool-registry";\nimport { runGitHubAgent } from "@/lib/github-agent-tools.server";\nimport { executeAgentCode, runAgentLoop } from "@/lib/agent-loop";\n\nconst loopSchema = z.object({ prompt: z.string().min(1).max(60_000), maxIterations: z.number().int().min(1).max(8).optional() });\nconst codeSchema = z.object({ language: z.string().min(1).max(40), code: z.string().max(500_000) });\n\nfunction prefersAuthenticatedGitHub(prompt: string): boolean {\n  return /github|repository|repo|pull request|branch|commit|workflow|actions|502|500|503|bug|error|debug|deploy|ดีพลอย|แก้โค้ด|แก้ไฟล์|ล่ม/.test(prompt.toLowerCase());\n}\n\nexport const runAgent = createServerFn({ method: "POST" })\n  .validator(loopSchema)\n  .handler(async ({ data }) => {\n    const selected = await selectToolsForTask(data.prompt, 20);\n    const selectedNames = selected.slice(0, 8).map((tool) => String(tool.name ?? "")).filter(Boolean);\n    const registryStep = { phase: "plan" as const, detail: `Tool Registry selected ${selectedNames.length} tools: ${selectedNames.join(", ")}` };\n\n    if (prefersAuthenticatedGitHub(data.prompt)) {\n      const result = await runGitHubAgent(data.prompt);\n      if (result.ok) {\n        return {\n          ok: true,\n          text: result.text,\n          steps: [\n            registryStep,\n            { phase: "act" as const, detail: `Authenticated GitHub Agent executed ${result.toolCalls.length} tool calls.` },\n            { phase: "observe" as const, detail: "GitHub tool results were returned and checked before completion." },\n          ],\n        };\n      }\n    }\n\n    const result = await runAgentLoop(data.prompt, selected, data.maxIterations ?? 6);\n    return { ...result, steps: [registryStep, ...result.steps] };\n  });\n\nexport const runAgentSandbox = createServerFn({ method: "POST" })\n  .validator(codeSchema)\n  .handler(async ({ data }) => executeAgentCode(data.language, data.code));\n
+import { createServerFn } from "@tanstack/react-start";
+import { z } from "zod";
+import { selectToolsForTask } from "@/lib/tool-registry";
+import { runGitHubAgent } from "@/lib/github-agent-tools.server";
+import { executeAgentCode, runAgentLoop } from "@/lib/agent-loop";
+
+const loopSchema = z.object({ prompt: z.string().min(1).max(60_000), maxIterations: z.number().int().min(1).max(8).optional() });
+const codeSchema = z.object({ language: z.string().min(1).max(40), code: z.string().max(500_000) });
+
+function prefersAuthenticatedGitHub(prompt: string): boolean {
+  return /github|repository|repo|pull request|branch|commit|workflow|actions|502|500|503|bug|error|debug|deploy|ดีพลอย|แก้โค้ด|แก้ไฟล์|ล่ม/.test(prompt.toLowerCase());
+}
+
+export const runAgent = createServerFn({ method: "POST" })
+  .validator(loopSchema)
+  .handler(async ({ data }) => {
+    const selected = await selectToolsForTask(data.prompt, 20);
+    const selectedNames = selected.slice(0, 8).map((tool) => String(tool.name ?? "")).filter(Boolean);
+    const registryStep = { phase: "plan" as const, detail: `Tool Registry selected ${selectedNames.length} tools: ${selectedNames.join(", ")}` };
+
+    if (prefersAuthenticatedGitHub(data.prompt)) {
+      const result = await runGitHubAgent(data.prompt);
+      if (result.ok) {
+        return {
+          ok: true,
+          text: result.text,
+          steps: [
+            registryStep,
+            { phase: "act" as const, detail: `Authenticated GitHub Agent executed ${result.toolCalls.length} tool calls.` },
+            { phase: "observe" as const, detail: "GitHub tool results were returned and checked before completion." },
+          ],
+        };
+      }
+    }
+
+    const result = await runAgentLoop(data.prompt, selected, data.maxIterations ?? 6);
+    return { ...result, steps: [registryStep, ...result.steps] };
+  });
+
+export const runAgentSandbox = createServerFn({ method: "POST" })
+  .validator(codeSchema)
+  .handler(async ({ data }) => executeAgentCode(data.language, data.code));
