@@ -8,6 +8,7 @@ import {
   githubGetFile,
   githubStatus,
   githubWorkflowDiagnostics,
+  githubWaitForWorkflow,
   githubWriteFile,
 } from "@/lib/github-app.server";
 
@@ -155,6 +156,22 @@ const TOOLS: ToolDef[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "github_wait_for_workflow",
+      description: "Wait for a GitHub Actions run to complete and return its actual conclusion. Use after dispatching or after a commit that triggers CI.",
+      parameters: {
+        type: "object",
+        properties: {
+          owner: { type: "string" }, repo: { type: "string" }, runId: { type: "integer" },
+          timeoutMs: { type: "integer" }, pollMs: { type: "integer" },
+        },
+        required: ["owner", "repo", "runId"],
+        additionalProperties: false,
+      },
+    },
+  },
 ];
 
 function parseArgs(value: unknown): Record<string, unknown> {
@@ -214,6 +231,12 @@ async function execute(name: string, args: Record<string, unknown>): Promise<unk
       return githubActions({ owner, repo, branch: args.branch ? String(args.branch) : undefined });
     case "github_workflow_diagnostics":
       return githubWorkflowDiagnostics({ owner, repo, runId: Number(args.runId) });
+    case "github_wait_for_workflow":
+      return githubWaitForWorkflow({
+        owner, repo, runId: Number(args.runId),
+        timeoutMs: args.timeoutMs ? Number(args.timeoutMs) : undefined,
+        pollMs: args.pollMs ? Number(args.pollMs) : undefined,
+      });
     case "github_dispatch_workflow":
       return githubDispatchWorkflow({ owner, repo, workflow: String(args.workflow ?? ""), branch: args.branch ? String(args.branch) : undefined, inputs: args.inputs && typeof args.inputs === "object" ? args.inputs as Record<string, string> : undefined });
     default:
@@ -252,7 +275,18 @@ async function runModel(prompt: string, model: string): Promise<AgentResult> {
 
     for (const call of calls) {
       if (["github_write_file", "github_create_branch", "github_create_pull_request", "github_create_issue", "github_dispatch_workflow"].includes(call.name)) mutationOccurred = true;
-      if (["github_get_file", "github_actions"].includes(call.name)) verified = true;
+      if (call.name === "github_wait_for_workflow") {
+        const result = await execute(call.name, call.arguments);
+        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+        verified = Boolean(result && typeof result === "object" && "verified" in result && (result as { verified?: unknown }).verified === true);
+        continue;
+      }
+      if (call.name === "github_workflow_diagnostics") {
+        const result = await execute(call.name, call.arguments);
+        messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
+        continue;
+      }
+
       try {
         const result = await execute(call.name, call.arguments);
         messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
