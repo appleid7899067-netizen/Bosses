@@ -21,7 +21,7 @@ function capabilityOf(tool: CodingFleetTool): string {
   const text = `${tool.name ?? ""} ${tool.description ?? ""}`.toLowerCase();
   if (/deploy|hosting|railway|vercel|netlify/.test(text)) return "deploy";
   if (/github|git|repo|commit|pull request|branch/.test(text)) return "code-repository";
-  if (/test|verify|check|lint|build|ci|workflow/.test(text)) return "verify";
+  if (/test|verify|check|lint|build|ci|workflow|sandbox_run|sandbox/.test(text)) return "verify";
   if (/debug|error|log|diagnos/.test(text)) return "debug";
   if (/file|read|write|edit|code/.test(text)) return "code";
   if (/database|sql|query/.test(text)) return "data";
@@ -34,9 +34,10 @@ function score(tool: ToolRegistryEntry, prompt: string): number {
   const capability = tool.capability;
   if (capability === "code-repository" && /github|repo|repository|โค้ด|code|ไฟล์|แก้|bug|error|502|deploy|ดีพลอย/.test(text)) value += 8;
   if (capability === "debug" && /bug|error|502|500|503|ล่ม|แก้|debug|diagnos/.test(text)) value += 7;
-  if (capability === "verify" && /test|verify|ตรวจ|เช็ก|build|ci|ผ่าน/.test(text)) value += 6;
+  if (capability === "verify" && /test|verify|ตรวจ|เช็ก|build|ci|ผ่าน|sandbox|รัน|run/.test(text)) value += 6;
   if (capability === "deploy" && /deploy|ดีพลอย|vercel|netlify|railway/.test(text)) value += 7;
   if (capability === "code" && /code|โค้ด|แก้ไฟล์|ไฟล์/.test(text)) value += 5;
+  if (tool.name === "sandbox_run" && /code|โค้ด|รัน|run|error|bug|debug|แก้|test|verify/.test(text)) value += 10;
   if (tool.source === "github" && /github|repo|repository/.test(text)) value += 5;
   return value;
 }
