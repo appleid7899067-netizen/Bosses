@@ -94,7 +94,7 @@ Never claim an external action succeeded without evidence.`;
     }
     steps.push({ phase: "observe", detail: `รอบที่ ${iteration + 1}: ได้ผลลัพธ์และ ${result.toolCalls.length} tool call` });
     if (!result.toolCalls.length) {
-      if (mutationExpected && !verificationPassedEvidence) {
+      if ((mutationExpected || hadVerificationActivity || looksLikeVerification(prompt)) && !verificationPassedEvidence) {
         steps.push({ phase: "verify", detail: "ยังไม่มีหลักฐานจาก verification tool หลังมีการเปลี่ยนแปลง จึงบังคับให้ Agent ตรวจซ้ำ" });
         if (iteration === Math.min(maxIterations, 8) - 1) {
           return { ok: false, text: last, steps, verified: false };
@@ -105,8 +105,14 @@ Never claim an external action succeeded without evidence.`;
 Verification gate: external mutation is expected. You MUST use an actual verification/status/test/build/CI/deploy tool and report its concrete result before finishing. Do not answer with a success claim without that evidence.`;
         continue;
       }
-      steps.push({ phase: "verify", detail: mutationExpected ? `Verification gate: ${verificationPassedEvidence || "ยังไม่มีหลักฐาน"}` : "ไม่มี external mutation ที่ต้องตรวจเพิ่ม" });
-      return { ok: true, text: last, steps, verified: !mutationExpected || Boolean(verificationPassedEvidence) };
+      steps.push({
+        phase: "verify",
+        detail: (mutationExpected || hadVerificationActivity || looksLikeVerification(prompt))
+          ? `Verification gate: ${verificationPassedEvidence || "ยังไม่มีหลักฐาน"}`
+          : "ไม่มี external mutation ที่ต้องตรวจเพิ่ม",
+      });
+      const verificationRequired = mutationExpected || hadVerificationActivity || looksLikeVerification(prompt);
+      return { ok: !verificationRequired || Boolean(verificationPassedEvidence), text: last, steps, verified: !verificationRequired || Boolean(verificationPassedEvidence) };
     }
     if (iteration === Math.min(maxIterations, 8) - 1) {
       steps.push({ phase: "verify", detail: "หมดรอบซ่อมที่กำหนด จึงยังไม่ประกาศว่าสำเร็จ" });
