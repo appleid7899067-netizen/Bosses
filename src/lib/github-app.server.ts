@@ -238,6 +238,24 @@ async function githubText(path: string, token: string): Promise<string> {
   return text;
 }
 
+export async function githubWaitForWorkflow(input: { owner: string; repo: string; runId: number; timeoutMs?: number; pollMs?: number }) {
+  const timeoutMs = Math.min(Math.max(input.timeoutMs ?? 120_000, 5_000), 300_000);
+  const pollMs = Math.min(Math.max(input.pollMs ?? 3_000, 1_000), 15_000);
+  const deadline = Date.now() + timeoutMs;
+  const token = await getInstallationToken(input.owner, input.repo);
+  while (Date.now() < deadline) {
+    const result = await github<{ id: number; status: string; conclusion: string | null; html_url: string; head_branch: string | null }>(
+      `/repos/${encodeURIComponent(input.owner)}/${encodeURIComponent(input.repo)}/actions/runs/${input.runId}`,
+      {}, token,
+    );
+    if (result.data.status === "completed") {
+      return { ...result.data, verified: result.data.conclusion === "success" };
+    }
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+  return { runId: input.runId, status: "timeout", conclusion: null, verified: false };
+}
+
 export async function githubWorkflowDiagnostics(input: { owner: string; repo: string; runId: number }) {
   const token = await getInstallationToken(input.owner, input.repo);
   const jobs = await github<{ jobs: Array<{ id: number; name: string; status: string; conclusion: string | null; steps?: Array<{ name: string; status: string; conclusion: string | null }> }> }>(
