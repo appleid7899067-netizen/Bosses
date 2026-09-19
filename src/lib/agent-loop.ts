@@ -117,6 +117,9 @@ Verification gate: external mutation is expected. You MUST use an actual verific
     if (verificationResults.length) {
       steps.push({ phase: "observe", detail: `Verification observations: ${verificationResults.map((item) => `${item.name}=${item.ok ? "passed" : "failed"}`).join(", ")}` });
     }
+    if (verificationResults.some((item) => !item.ok)) {
+      steps.push({ phase: "refine", detail: `Verification ไม่ผ่าน: ${verificationResults.filter((item) => !item.ok).map((item) => `${item.name}: ${String(item.error ?? "ไม่ผ่าน").slice(0, 180)}`).join(" | ")}` });
+    }
     const failedTools = failedResults.map((item) => `${item.name} (failures: ${toolFailureCounts.get(item.name) ?? 1}): ${String(item.error ?? "unknown error").slice(0, 800)}`);
     if (failedResults.length) {
       failedToolStreak += 1;
