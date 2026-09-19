@@ -258,16 +258,16 @@ async function executeTool(tool: CodingFleetTool, args: Record<string, unknown>)
 
 async function chatModel(messages: Array<Record<string, unknown>>, tools: CodingFleetTool[], model: string): Promise<{ text: string; response: unknown; toolCalls: ToolCall[] }> { const puter = await ensurePuter(); if (!puter.auth.isSignedIn()) await puter.auth.signIn(); const response = await puter.ai.chat(messages, { model, tools: toPuterTools(tools), normalize: true, stream: false }); return { text: extractText(response), response, toolCalls: extractToolCalls(response) }; }
 
-export async function callWithFallback(prompt: string, tools: CodingFleetTool[], models: readonly string[] = DEFAULT_MODELS): Promise<{ ok: true; text: string; model: string; toolCalls: ToolCall[] } | { ok: false; error: string }> {
+export type ToolExecutionResult = { name: string; ok: boolean; result?: unknown; error?: string };\n\nexport async function callWithFallback(prompt: string, tools: CodingFleetTool[], models: readonly string[] = DEFAULT_MODELS): Promise<{ ok: true; text: string; model: string; toolCalls: ToolCall[]; toolResults: ToolExecutionResult[] } | { ok: false; error: string }> {
   let lastError = "No model succeeded.";
   for (const model of models) {
     try {
       const availableTools = tools.slice(0, TOOL_LIMIT);
       const system = ["You are Bossnu SlieLo Agent. Use available tools when they materially improve the answer. Never claim an external action succeeded unless the tool returned success.", "Available tools:", toolSummary(availableTools)].join("\n\n");
       const messages: Array<Record<string, unknown>> = [{ role: "system", content: system }, { role: "user", content: prompt }];
-      for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
+      const toolResults: ToolExecutionResult[] = [];\n      for (let round = 0; round < MAX_TOOL_ROUNDS; round += 1) {
         const result = await chatModel(messages, availableTools, model);
-        if (!result.toolCalls.length) return { ok: true, text: result.text, model, toolCalls: [] };
+        if (!result.toolCalls.length) return { ok: true, text: result.text, model, toolCalls: [], toolResults };
         const assistantMessage = assistantToolMessage(result.response);
         if (assistantMessage) messages.push(assistantMessage);
         for (const call of result.toolCalls) {
@@ -278,9 +278,9 @@ export async function callWithFallback(prompt: string, tools: CodingFleetTool[],
           }
           try {
             const output = await executeTool(tool, call.arguments);
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: true, result: output }) });
+            toolResults.push({ name: call.name, ok: true, result: output });\n            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: true, result: output }) });
           } catch (error) {
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: error instanceof Error ? error.message : String(error) }) });
+            const errorMessage = error instanceof Error ? error.message : String(error);\n            toolResults.push({ name: call.name, ok: false, error: errorMessage });\n            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: errorMessage }) });
           }
         }
       }
