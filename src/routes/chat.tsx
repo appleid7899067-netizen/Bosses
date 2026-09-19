@@ -47,6 +47,7 @@ function ChatPage() {
   const deleteThread = useFleet((s) => s.deleteThread);
   const appendMessage = useFleet((s) => s.appendMessage);
   const patchMessage = useFleet((s) => s.patchMessage);
+  const patchActivity = useFleet((s) => s.patchActivity);
   const updateTools = useFleet((s) => s.updateTools);
   const toggleMcp = useFleet((s) => s.toggleMcp);
   const modelId = useFleet((s) => s.modelId);
@@ -120,10 +121,12 @@ function ChatPage() {
         (full) => patchMessage(thread.id, assistantId, full),
       );
       if (!res.ok) {
+        if (res.activity) patchActivity(thread.id, assistantId, res.activity);
         toast.error(res.error);
         patchMessage(thread.id, assistantId, `Could not complete that turn.\n\n${res.error}`);
         return;
       }
+      if (res.activity) patchActivity(thread.id, assistantId, res.activity);
       patchMessage(thread.id, assistantId, res.text);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Chat failed");
