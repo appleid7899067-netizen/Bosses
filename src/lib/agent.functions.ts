@@ -21,11 +21,23 @@ export const runAgent = createServerFn({ method: "POST" })
     const registryHasGitHub = selected.some((tool) => String(tool.name ?? "").toLowerCase().includes("github"));
     if (registryHasGitHub && prefersAuthenticatedGitHub(data.prompt)) {
       const result = await runGitHubAgent(data.prompt);
+      if (!result.ok) {
+        return {
+          ok: false,
+          text: result.error,
+          steps: [
+            registryStep,
+            { phase: "observe" as const, detail: `GitHub Agent failed: ${result.error.slice(0, 300)}` },
+            { phase: "verify" as const, detail: "GitHub Agent ยังไม่มีหลักฐาน verification สำเร็จ" },
+          ],
+          verified: false,
+        };
+      }
       const verificationStep = result.verified
         ? { phase: "verify" as const, detail: "GitHub Agent มีหลักฐาน verification จริงจาก workflow/web health check" }
         : { phase: "verify" as const, detail: "GitHub Agent ยังไม่มีหลักฐาน verification สำเร็จ" };
       return {
-        ok: result.ok && (result.verified || !/แก้|เขียน|สร้าง|ลบ|update|write|fix|repair|deploy|ดีพลอย|modify|change/i.test(data.prompt)),
+        ok: result.verified || !/แก้|เขียน|สร้าง|ลบ|update|write|fix|repair|deploy|ดีพลอย|modify|change/i.test(data.prompt),
         text: result.text,
         steps: [
           registryStep,
