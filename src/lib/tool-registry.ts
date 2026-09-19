@@ -50,9 +50,27 @@ export async function buildToolRegistry(forceRefresh = false): Promise<ToolRegis
 
 export async function selectToolsForTask(prompt: string, maxTools = 20): Promise<ToolRegistryEntry[]> {
   const registry = await buildToolRegistry();
-  return registry
+  const limit = Math.max(1, Math.min(maxTools, 20));
+  const ranked = registry
     .map((tool, index) => ({ tool, score: score(tool, prompt), index }))
-    .sort((a, b) => b.score - a.score || a.index - b.index)
-    .slice(0, Math.max(1, Math.min(maxTools, 20)))
-    .map(({ tool }) => tool);
+    .sort((a, b) => b.score - a.score || a.index - b.index);
+
+  const text = prompt.toLowerCase();
+  const needsCodeExecution = /code|โค้ด|รัน|run|test|verify|bug|error|debug|แก้/.test(text);
+  const needsWebVerification = /เว็บ|website|url|http|502|500|503|timeout|deploy|ดีพลอย|ตรวจ|เช็ก/.test(text);
+  const reservedNames = [
+    ...(needsCodeExecution ? ["sandbox_run"] : []),
+    ...(needsWebVerification ? ["web_check"] : []),
+  ];
+
+  const selected: ToolRegistryEntry[] = [];
+  for (const name of reservedNames) {
+    const match = ranked.find(({ tool }) => tool.name === name);
+    if (match && selected.length < limit) selected.push(match.tool);
+  }
+  for (const { tool } of ranked) {
+    if (selected.length >= limit) break;
+    if (!selected.some((item) => item.name === tool.name)) selected.push(tool);
+  }
+  return selected;
 }
