@@ -7,6 +7,7 @@ import {
   githubDispatchWorkflow,
   githubGetFile,
   githubStatus,
+  githubWorkflowDiagnostics,
   githubWriteFile,
 } from "@/lib/github-app.server";
 
@@ -131,7 +132,19 @@ const TOOLS: ToolDef[] = [
   {
     type: "function",
     function: {
-      name: "github_dispatch_workflow",
+      name: "github_workflow_diagnostics",
+      description: "Inspect a workflow run and retrieve the tail of failed job logs for diagnosis.",
+      parameters: {
+        type: "object",
+        properties: { owner: { type: "string" }, repo: { type: "string" }, runId: { type: "integer" } },
+        required: ["owner", "repo", "runId"],
+        additionalProperties: false,
+      },
+    },
+    {
+      type: "function",
+      function: {
+        name: "github_dispatch_workflow",
       description: "Dispatch a GitHub Actions workflow on a branch.",
       parameters: {
         type: "object",
@@ -198,6 +211,8 @@ async function execute(name: string, args: Record<string, unknown>): Promise<unk
       return githubCreateIssue({ owner, repo, title: String(args.title ?? ""), body: args.body ? String(args.body) : undefined });
     case "github_actions":
       return githubActions({ owner, repo, branch: args.branch ? String(args.branch) : undefined });
+    case "github_workflow_diagnostics":
+      return githubWorkflowDiagnostics({ owner, repo, runId: Number(args.runId) });
     case "github_dispatch_workflow":
       return githubDispatchWorkflow({ owner, repo, workflow: String(args.workflow ?? ""), branch: args.branch ? String(args.branch) : undefined, inputs: args.inputs && typeof args.inputs === "object" ? args.inputs as Record<string, string> : undefined });
     default:
@@ -212,7 +227,7 @@ async function runModel(prompt: string, model: string): Promise<AgentResult> {
   const messages: Array<Record<string, unknown>> = [
     {
       role: "system",
-      content: "You are CodingFleet GitHub Agent 77. Use the authenticated GitHub App tools to inspect and change repositories. For updates to existing files, read the file first and use its current sha. Verify writes from GitHub tool output before claiming success. Never claim a write happened unless github_write_file returned a commit result.",
+      content: "You are CodingFleet GitHub Agent 77. Work as an autonomous software engineer: inspect first, make the smallest safe change, run or dispatch verification, inspect failed workflow logs, fix the root cause, and verify again. For updates to existing files, read the file first and use its current sha. Never claim success without evidence from the actual tool or verification result.",
     },
     { role: "user", content: prompt },
   ];
