@@ -280,7 +280,7 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
         history ? `Conversation history:\n${history}` : "",
         `Current user request:\n${userMessage}`,
       ].filter(Boolean).join("\n\n");
-      const fleet = await callWithFallback(prompt, tools, data.modelId ? [data.modelId, "gpt-4o", "gemini-2.5-pro"] : undefined);
+      const fleet = await callWithFallback(prompt, tools, data.modelId ? [data.modelId, "gpt-4o", "gemini-2.5-pro"] : undefined, onActivity);
       if (fleet.ok) {
         onDelta?.(fleet.text);
         const toolNames = fleet.toolCalls.map((call) => call.name).filter(Boolean).slice(0, 8); const activity = ["🧠 วิเคราะห์", "🧰 Tool Registry", ...(toolNames.length ? [`⚙️ ใช้เครื่องมือ: ${toolNames.join(", ")}`] : ["⚙️ ประมวลผล"]), ...(fleet.toolResults.length ? [`👀 Observe: ${fleet.toolResults.filter((item) => item.ok).length}/${fleet.toolResults.length} ผ่าน`] : []), "✅ ส่งผลลัพธ์"]; onActivity?.(activity); return { ok: true, text: fleet.text, model: fleet.model, activity };
