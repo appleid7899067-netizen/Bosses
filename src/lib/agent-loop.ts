@@ -13,14 +13,14 @@ export async function runAgentLoop(prompt: string, tools: CodingFleetTool[], max
   let currentPrompt = `${prompt}\n\nAgent protocol: Plan, Act, Observe, Refine. MCP tools discovered: ${mcpCount}.`;
   let last = "";
 
-  for (let iteration = 0; iteration < Math.max(1, Math.min(maxIterations, 3)); iteration += 1) {
+  for (let iteration = 0; iteration < Math.max(1, Math.min(maxIterations, 8)); iteration += 1) {
     steps.push({ phase: "act", detail: `Iteration ${iteration + 1}: model/tool execution.` });
     const result = await callWithFallback(currentPrompt, tools);
     if (!result.ok) return { ok: false, text: result.error, steps };
     last = result.text;
     steps.push({ phase: "observe", detail: `Iteration ${iteration + 1}: received model result with ${result.toolCalls.length} tool calls.` });
     if (!result.toolCalls.length) return { ok: true, text: last, steps, verified: true };
-    if (iteration === Math.min(maxIterations, 3) - 1) return { ok: false, text: last, steps, verified: false };
+    if (iteration === Math.min(maxIterations, 8) - 1) return { ok: false, text: last, steps, verified: false };
     currentPrompt = `${prompt}\n\nPrevious result:\n${last.slice(-12000)}\n\nRefine the result using verified tool output. Do not claim success without evidence.`;
     steps.push({ phase: "refine", detail: "Feeding verified observations back into the next iteration." });
   }
