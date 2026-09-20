@@ -78,6 +78,31 @@ function ChatPage() {
     setPreviews((current) => [...current, ...next.map((file) => ({ file, url: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined }))].slice(0, 8));
   }
 
+  async function describeAttachment(file: File): Promise<string> {
+    if (file.name.toLowerCase().endsWith(".zip")) {
+      const buffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(buffer);
+      const view = new DataView(buffer);
+      const names: string[] = [];
+      for (let i = 0; i + 46 < bytes.length; i++) {
+        if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 0x01 && bytes[i + 3] === 0x02) {
+          const nameLen = view.getUint16(i + 28, true);
+          const extraLen = view.getUint16(i + 30, true);
+          const commentLen = view.getUint16(i + 32, true);
+          const nameBytes = bytes.slice(i + 46, i + 46 + nameLen);
+          names.push(new TextDecoder().decode(nameBytes));
+          i += 45 + nameLen + extraLen + commentLen;
+        }
+        if (names.length >= 300) break;
+      }
+      return names.length ? "ZIP contents (" + names.length + " entries):\n" + names.slice(0, 300).join("\n") : "ZIP attached, but its directory could not be read in the browser.";
+    }
+    if (file.type.startsWith("text/") || /\.(md|txt|json|js|jsx|ts|tsx|css|html|xml|yml|yaml|csv|py|go|rs|java|sql|env)$/i.test(file.name)) {
+      const text = await file.text();
+      return "File content: " + text.slice(0, 60000) + (text.length > 60000 ? "\n[truncated at 60,000 characters]" : "");
+    }
+    return "Binary attachment: " + file.name + " (" + (file.type || "unknown") + ")";
+  }
   function removeAttachment(index: number) {
     setPreviews((current) => { const item = current[index]; if (item?.url) URL.revokeObjectURL(item.url); return current.filter((_, i) => i !== index); });
     setAttachments((current) => current.filter((_, i) => i !== index));
@@ -93,12 +118,12 @@ function ChatPage() {
         return;
       }
     }
-    const attachmentContext = attachments.length ? `\n\nAttached files:\n${attachments.map((f) => `- ${f.name} (${f.type || "unknown"}, ${Math.ceil(f.size / 1024)} KB)`).join("\n")}` : "";
+    const attachmentDetails = attachments.length ? await Promise.all(attachments.map(async (f) => `- ${f.name} (${f.type || "unknown"}, ${Math.ceil(f.size / 1024)} KB)\n  ${await describeAttachment(f)}`)) : [];\n    const attachmentContext = attachmentDetails.length ? `\n\nAttached files:\n${attachmentDetails.join("\n")}` : "";
     const text = normalizeToolPrompt((draft.trim() || "Analyze the attached files") + attachmentContext, thread.mcp);
     setDraft("");
     setAttachments([]);
     setPreviews([]);
-    appendMessage(thread.id, { role: "user", content: text });
+    appendMessage(thread.id, { role: "user", content: text, attachments: attachments.map((file) => ({ name: file.name, size: file.size, type: file.type })) });
     setBusy(true);
     const activity: string[] = [];
     if (thread.tools.web) activity.push("Web");
