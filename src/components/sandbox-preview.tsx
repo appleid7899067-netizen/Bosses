@@ -6,6 +6,7 @@ type WebContainerInstance = {
   mount(files: Record<string, unknown>): Promise<void>;
   spawn(command: string, args?: string[]): Promise<{ exit: Promise<number> }>;
   on(event: "server-ready", listener: (port: number, url: string) => void): void;
+  teardown(): Promise<void>;
 };
 
 export function SandboxPreview() {
