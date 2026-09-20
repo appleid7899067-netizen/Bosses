@@ -6,6 +6,7 @@ import { AppShell } from "@/components/app-shell";
 import { MarkdownOutput } from "@/components/markdown-output";
 import { SandboxPreview } from "@/components/sandbox-preview";
 import { ModelPicker } from "@/components/pickers";
+import { ProviderKeyBar } from "@/components/provider-key-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -281,6 +282,7 @@ function ChatPage() {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
             <ModelPicker compact />
+            <ProviderKeyBar />
             <div className="ml-auto flex items-center gap-1 md:hidden">
               <Button size="icon-sm" variant="ghost" onClick={() => newThread()} aria-label="New chat">
                 <Plus className="size-4" />
