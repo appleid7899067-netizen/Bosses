@@ -290,7 +290,10 @@ export async function callWithFallback(prompt: string, tools: CodingFleetTool[],
         for (const call of result.toolCalls) {
           const tool = availableTools.find((candidate) => toolName(candidate) === call.name);
           if (!tool) {
-            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: `Unknown tool: ${call.name}` }) });
+            const errorMessage = `Unknown tool: ${call.name}`;
+            toolResults.push({ name: call.name, ok: false, error: errorMessage });
+            onActivity?.([`⚙️ ใช้เครื่องมือ: ${call.name}`, `❌ Tool error: ${errorMessage}`]);
+            messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify({ ok: false, error: errorMessage }) });
             continue;
           }
           try {
