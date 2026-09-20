@@ -28,9 +28,9 @@ export function PuterProvider({ children }: { children: ReactNode }) {
   const refresh = useCallback(async () => {
     try {
       const puter = await ensurePuter();
-      const ok = puter.auth.isSignedIn();
-      setSignedIn(ok);
-      setUser(ok ? await currentPuterUser() : null);
+      const current = await currentPuterUser();
+      setSignedIn(Boolean(current));
+      setUser(current);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Puter failed to load.");
