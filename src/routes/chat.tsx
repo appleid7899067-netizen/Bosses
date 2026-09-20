@@ -335,6 +335,9 @@ function ChatPage() {
           </div>
 
           <div className="border-t border-border px-3 py-3">
+            <div className="mx-auto max-w-2xl pb-3">
+              <SandboxPreview />
+            </div>
             <div className="mx-auto max-w-2xl">
               <div className="mb-2 flex flex-wrap gap-3">
                 <ToolToggle
