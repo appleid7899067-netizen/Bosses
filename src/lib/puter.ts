@@ -2,6 +2,7 @@ export type PuterUser = {
   username?: string;
   uuid?: string;
   email?: string;
+  requires_phone_verification?: boolean;
 };
 
 type PuterChatPart = { text?: string; message?: unknown };
@@ -109,16 +110,26 @@ function friendlyError(err: unknown): string {
 
 let signInInFlight: Promise<PuterUser | null> | null = null;
 
-export async function signInWithPuter(): Promise<PuterUser | null> {
+export async function signInWithPuter(forceReauth = false): Promise<PuterUser | null> {
   if (signInInFlight) return signInInFlight;
   signInInFlight = (async () => {
     const puter = await ensurePuter();
-    if (puter.auth.isSignedIn()) {
-      try { return await puter.auth.getUser(); } catch { return { username: "puter-user" }; }
+    if (puter.auth.isSignedIn() && !forceReauth) {
+      try {
+        const user = await puter.auth.getUser();
+        if (user.requires_phone_verification) return null;
+        return user;
+      } catch { return { username: "puter-user" }; }
     }
-    await puter.auth.signIn();
+    const result = await puter.auth.signIn(forceReauth ? { request_auth: true } : undefined);
     if (!puter.auth.isSignedIn()) return null;
-    try { return await puter.auth.getUser(); } catch { return { username: "puter-user" }; }
+    try {
+      const user = await puter.auth.getUser();
+      if (user.requires_phone_verification) return null;
+      return user;
+    } catch {
+      return result ? { username: "puter-user" } : null;
+    }
   })();
   try {
     return await signInInFlight;
@@ -135,6 +146,14 @@ export async function chatWithPuter(opts: { messages: ChatTurn[]; model: string;
   let puter: PuterAPI;
   try { puter = await ensurePuter(); } catch (err) { return { ok: false, error: friendlyError(err) }; }
   if (!puter.auth.isSignedIn()) return { ok: false, error: "Puter ยังไม่ได้เข้าสู่ระบบ กรุณากด Sign in with Puter ก่อน แล้วจึงลองส่งอีกครั้ง" };
+  try {
+    const user = await puter.auth.getUser();
+    if (user.requires_phone_verification) {
+      return { ok: false, error: "Puter บัญชีนี้ยังมีสถานะต้องยืนยันเบอร์โทร แม้เพิ่งยืนยันแล้ว ให้กด Sign in with Puter อีกครั้งเพื่อรีเฟรชเซสชัน" };
+    }
+  } catch {
+    return { ok: false, error: "Puter session ยังไม่พร้อม กรุณากด Sign in with Puter อีกครั้ง" };
+  }
   const payload = withCredentialPolicy(opts.messages).map((m) => ({ role: m.role, content: m.content }));
   const run = async (stream: boolean) => {
     const resp = await puter.ai.chat(payload, { model: opts.model, stream });
