@@ -83,19 +83,46 @@ function ChatPage() {
       const buffer = await file.arrayBuffer();
       const bytes = new Uint8Array(buffer);
       const view = new DataView(buffer);
-      const names: string[] = [];
-      for (let i = 0; i + 46 < bytes.length; i++) {
-        if (bytes[i] === 0x50 && bytes[i + 1] === 0x4b && bytes[i + 2] === 0x01 && bytes[i + 3] === 0x02) {
-          const nameLen = view.getUint16(i + 28, true);
-          const extraLen = view.getUint16(i + 30, true);
-          const commentLen = view.getUint16(i + 32, true);
-          const nameBytes = bytes.slice(i + 46, i + 46 + nameLen);
-          names.push(new TextDecoder().decode(nameBytes));
-          i += 45 + nameLen + extraLen + commentLen;
+      const decoder = new TextDecoder();
+      const files: string[] = [];
+      let totalChars = 0;
+
+      for (let i = 0; i + 46 <= bytes.length && files.length < 50; i++) {
+        if (view.getUint32(i, true) !== 0x02014b50) continue;
+        const method = view.getUint16(i + 10, true);
+        const compressedSize = view.getUint32(i + 20, true);
+        const nameLen = view.getUint16(i + 28, true);
+        const extraLen = view.getUint16(i + 30, true);
+        const commentLen = view.getUint16(i + 32, true);
+        const localOffset = view.getUint32(i + 42, true);
+        const name = decoder.decode(bytes.slice(i + 46, i + 46 + nameLen));
+        i += 45 + nameLen + extraLen + commentLen;
+        if (!name || name.endsWith("/") || /(^|\/)(node_modules|\.git|dist|build)(\/|$)/i.test(name)) continue;
+        if (!/\.(md|txt|json|js|jsx|ts|tsx|css|html|xml|yml|yaml|csv|py|go|rs|java|sql|env)$/i.test(name)) continue;
+        if (compressedSize > 2_000_000 || localOffset + 30 > bytes.length) continue;
+        const localNameLen = view.getUint16(localOffset + 26, true);
+        const localExtraLen = view.getUint16(localOffset + 28, true);
+        const dataStart = localOffset + 30 + localNameLen + localExtraLen;
+        const compressed = bytes.slice(dataStart, dataStart + compressedSize);
+        let content = "";
+        try {
+          if (method === 0) content = decoder.decode(compressed);
+          else if (method === 8 && "DecompressionStream" in globalThis) {
+            const stream = new Blob([compressed]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+            content = decoder.decode(await new Response(stream).arrayBuffer());
+          }
+        } catch {
+          content = "";
         }
-        if (names.length >= 300) break;
+        if (!content) continue;
+        const remaining = 60000 - totalChars;
+        if (remaining <= 0) break;
+        const clipped = content.slice(0, remaining);
+        files.push(`\\n### ${name}\\n${clipped}`);
+        totalChars += clipped.length;
       }
-      return names.length ? "ZIP contents (" + names.length + " entries):\n" + names.slice(0, 300).join("\n") : "ZIP attached, but its directory could not be read in the browser.";
+      if (files.length) return `ZIP extracted text files (${files.length}):${files.join("")}${totalChars >= 60000 ? "\\n[ZIP content truncated at 60,000 characters]" : ""}`;
+      return "ZIP attached, but no readable text/code entries could be extracted in this browser.";
     }
     if (file.type.startsWith("text/") || /\.(md|txt|json|js|jsx|ts|tsx|css|html|xml|yml|yaml|csv|py|go|rs|java|sql|env)$/i.test(file.name)) {
       const text = await file.text();
@@ -363,7 +390,7 @@ function ChatPage() {
                   className="min-h-12 border-0 bg-transparent shadow-none focus-visible:shadow-none"
                   rows={2}
                 />
-                <Button size="icon" onClick={() => void send()} disabled={busy || !draft.trim()} aria-label="Send">
+                <Button size="icon" onClick={() => void send()} disabled={busy || (!draft.trim() && attachments.length === 0)} aria-label="Send">
                   {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 </Button>
               </div>
