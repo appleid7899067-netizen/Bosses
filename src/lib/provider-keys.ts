@@ -25,6 +25,25 @@ export type OpenRouterModel = {
 
 export const API_KEY_CHANGED_EVENT = "bosses:api-key-changed";
 
+// Puter exposes these model IDs through its own gateway. When the same model ID
+// is also present in OpenRouter, Boss can call that model through the user's
+// OpenRouter key. This is the same model identity, not a Puter-billed request.
+export const PUTER_MODEL_IDS = [
+  "openai/gpt-5.6-luna",
+  "openai/gpt-5.6-luna-pro",
+  "anthropic/claude-sonnet-5",
+  "anthropic/claude-sonnet-4-6",
+  "google/gemini-3.6-flash",
+  "google/gemini-3.1-flash-lite",
+  "qwen/qwen3.7-flash",
+  "poolside/laguna-s-2.1",
+] as const;
+
+export function isPuterCatalogModel(modelId: string): boolean {
+  const normalized = modelId.trim().toLowerCase().replace(/^~?/, "");
+  return PUTER_MODEL_IDS.some((id) => id === normalized);
+}
+
 let memoryKey: string | null = null;
 
 function sessionGet() {
@@ -129,6 +148,11 @@ export function chooseOpenRouterModel(models: OpenRouterModel[], prompt: string)
   const preferred = coding
     ? ["openai/", "anthropic/", "google/", "deepseek/", "qwen/", "x-ai/", "mistralai/"]
     : ["openai/", "google/", "anthropic/", "deepseek/", "qwen/"];
+  // Prefer model IDs that are also exposed by Puter, when OpenRouter has them.
+  // The request still goes to OpenRouter because the user supplied an OpenRouter key.
+  const puterMatch = PUTER_MODEL_IDS.find((id) => models.some((m) => m.id.toLowerCase() === id));
+  if (puterMatch) return models.find((m) => m.id.toLowerCase() === puterMatch) ?? null;
+
   for (const prefix of preferred) {
     const found = models.find((m) => m.id.startsWith(prefix) && !/image|audio|video|embedding|rerank|transcription/i.test(m.id));
     if (found) return found;
