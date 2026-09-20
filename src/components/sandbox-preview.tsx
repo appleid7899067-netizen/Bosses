@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, RotateCcw, TerminalSquare } from "lucide-react";
+import { Play, RotateCcw, TerminalSquare, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 type WebContainerInstance = {
@@ -15,11 +15,13 @@ export function SandboxPreview() {
   const [status, setStatus] = useState("พร้อมรัน");
   const [url, setUrl] = useState("");
   const [logs, setLogs] = useState<string[]>([]);
+  const [error, setError] = useState("");
 
   async function bootAndRun() {
     setStatus("กำลังเปิด Sandbox...");
     setLogs([]);
     setUrl("");
+    setError("");
     try {
       const loadWebContainer = new Function("return import('https://esm.sh/@webcontainer/api@1.6.4')") as () => Promise<{ WebContainer: { boot(): Promise<WebContainerInstance> } }>;
       const { WebContainer } = await loadWebContainer();
@@ -75,6 +77,7 @@ export function SandboxPreview() {
     } catch (error) {
       const message = error instanceof Error ? error.message : "Sandbox failed";
       setStatus("Sandbox ล้มเหลว");
+      setError(message);
       setLogs((current) => [...current, message]);
     }
   }
@@ -87,6 +90,7 @@ export function SandboxPreview() {
     processRef.current = null;
     setUrl("");
     setLogs([]);
+    setError("");
     setStatus("พร้อมรัน");
   }
 
@@ -101,7 +105,7 @@ export function SandboxPreview() {
         <Button size="sm" variant="outline" onClick={() => void bootAndRun()}><Play className="mr-1 size-3" />Run</Button>
         <Button size="icon-sm" variant="ghost" onClick={() => void reset()} aria-label="Reset sandbox"><RotateCcw className="size-3" /></Button>
       </div>
-      {logs.length > 0 && <pre className="mt-2 max-h-24 overflow-auto rounded bg-black/40 p-2 text-[11px]">{logs.join("\n")}</pre>}
+      {error && <div className="mt-2 flex items-start gap-2 rounded bg-danger/10 p-2 text-[11px] text-danger"><AlertTriangle className="mt-0.5 size-3.5 shrink-0" /><span>{error}</span></div>}{logs.length > 0 && <pre className="mt-2 max-h-24 overflow-auto rounded bg-black/40 p-2 text-[11px]">{logs.join("\n")}</pre>}
       {url ? <iframe title="Boss live preview" src={url} className="mt-3 h-72 w-full rounded-lg border bg-white" sandbox="allow-scripts allow-same-origin allow-forms allow-modals" /> : <div className="mt-3 flex h-28 items-center justify-center rounded-lg border border-dashed text-xs text-muted">กด Run เพื่อเปิด runtime และ Preview จริง</div>}
     </section>
   );
