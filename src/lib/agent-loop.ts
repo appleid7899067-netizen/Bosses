@@ -168,6 +168,9 @@ Verification gate: external mutation is expected. You MUST use an actual verific
       steps.push({ phase: "refine", detail: "นำผลจริงกลับไปให้ Agent วิเคราะห์และแก้ต่อ" });
     }
     const repeatedFailures = Array.from(toolFailureCounts.entries()).filter(([, count]) => count >= 2).map(([name, count]) => `${name} failed ${count} times`);
+    const escalationInstruction = repeatedFailures.length
+      ? `Repeated-tool escalation: ${repeatedFailures.join("; ")}. Do not blindly repeat the same failing tool. Prefer a different available tool, inspect the failure evidence more deeply, or change the repair strategy before retrying.`
+      : "No repeated tool failures yet.";
     currentPrompt = `${prompt}
 
 Repair context: ${repairedToolNames.size ? `เครื่องมือที่เคยพลาดและต้องติดตาม: ${Array.from(repairedToolNames).join(", ")}. เครื่องมือที่พลาดซ้ำ: ${repeatedFailures.length ? repeatedFailures.join(", ") : "ไม่มี"}` : "ยังไม่มี"}.
@@ -185,6 +188,7 @@ ${failedTools.length ? failedTools.join("\n") : "ไม่มี"}
 Deterministic diagnosis hints:
 ${diagnosisHints.length ? diagnosisHints.join("\n") : "ไม่มี"}
 ${verificationIssue}
+${escalationInstruction}
 
 Continue from the actual observations above. For every failed tool, diagnose the concrete error, make the smallest safe repair when appropriate, then rerun the relevant tool. If verification fails, diagnose and repair the root cause. Do not stop merely because a file was changed. Do not claim success until verification evidence exists.`;
   }
