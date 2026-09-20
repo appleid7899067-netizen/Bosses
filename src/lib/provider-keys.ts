@@ -6,7 +6,14 @@ export type ProviderDetection = {
   detail: string;
 };
 
-export type PuterModel = {\n  id: string;\n  provider?: string;\n  name?: string;\n  aliases?: string[];\n};\n\nexport type OpenRouterModel = {
+export type PuterModel = {
+  id: string;
+  provider?: string;
+  name?: string;
+  aliases?: string[];
+};
+
+export type OpenRouterModel = {
   id: string;
   name?: string;
   context_length?: number;
@@ -46,7 +53,27 @@ export function detectKeyShape(key: string): ProviderDetection {
   return { provider: "unknown", label: "Unknown provider", detail: "The key format is not uniquely identifiable. Boss will not guess or send it to random services." };
 }
 
-export async function fetchPuterModelCatalog(): Promise<PuterModel[]> {\n  const response = await fetch("https://api.puter.com/puterai/chat/models/details", { headers: { Accept: "application/json" } });\n  if (!response.ok) throw new Error(`Puter model catalog unavailable (${response.status})`);\n  const data = await response.json() as { models?: PuterModel[] };\n  return Array.isArray(data.models) ? data.models : [];\n}\n\nfunction modelKeys(model: PuterModel): string[] {\n  return [model.id, ...(model.aliases ?? [])].map((value) => value.trim().toLowerCase()).filter(Boolean);\n}\n\nexport function filterOpenRouterToPuterModels(openRouterModels: OpenRouterModel[], puterModels: PuterModel[]): OpenRouterModel[] {\n  const puterKeys = new Set(puterModels.flatMap(modelKeys));\n  return openRouterModels.filter((model) => {\n    const id = model.id.trim().toLowerCase();\n    const bare = id.replace(/^~?[^/]+\\//, "");\n    return puterKeys.has(id) || puterKeys.has(bare) || puterKeys.has(model.id.split("/").pop()?.toLowerCase() ?? "");\n  });\n}\n\nexport async function verifyOpenRouterKey(key: string): Promise<{ ok: true; models: OpenRouterModel[] } | { ok: false; error: string }> {
+export async function fetchPuterModelCatalog(): Promise<PuterModel[]> {
+  const response = await fetch("https://api.puter.com/puterai/chat/models/details", { headers: { Accept: "application/json" } });
+  if (!response.ok) throw new Error(`Puter model catalog unavailable (${response.status})`);
+  const data = await response.json() as { models?: PuterModel[] };
+  return Array.isArray(data.models) ? data.models : [];
+}
+
+function modelKeys(model: PuterModel): string[] {
+  return [model.id, ...(model.aliases ?? [])].map((value) => value.trim().toLowerCase()).filter(Boolean);
+}
+
+export function filterOpenRouterToPuterModels(openRouterModels: OpenRouterModel[], puterModels: PuterModel[]): OpenRouterModel[] {
+  const puterKeys = new Set(puterModels.flatMap(modelKeys));
+  return openRouterModels.filter((model) => {
+    const id = model.id.trim().toLowerCase();
+    const bare = id.replace(/^~?[^/]+\\//, "");
+    return puterKeys.has(id) || puterKeys.has(bare) || puterKeys.has(model.id.split("/").pop()?.toLowerCase() ?? "");
+  });
+}
+
+export async function verifyOpenRouterKey(key: string): Promise<{ ok: true; models: OpenRouterModel[] } | { ok: false; error: string }> {
   const response = await fetch("https://openrouter.ai/api/v1/models", {
     headers: { Authorization: `Bearer ${key.trim()}` },
   });
@@ -116,7 +143,8 @@ export async function callOpenRouter(opts: {
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split("\n");
+    const lines = buffer.split("
+");
     buffer = lines.pop() ?? "";
     for (const raw of lines) {
       const line = raw.trim();
