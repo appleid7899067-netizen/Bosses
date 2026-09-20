@@ -1,6 +1,6 @@
 import { ensurePuter, extractText } from "@/lib/puter";
 import { runInSandbox } from "@/lib/sandbox";
-import { githubActions, githubCreateBranch, githubCreateIssue, githubCreatePullRequest, githubDispatchWorkflow, githubGetFile, githubStatus, githubWaitForWorkflow, githubWriteFile } from "@/lib/github-app.server";
+import { executeAuthenticatedGitHubTool } from "@/lib/github-tool-bridge";
 
 export type CodingFleetTool = {
   name?: string;
@@ -189,23 +189,6 @@ async function executeSandboxTool(args: Record<string, unknown>): Promise<unknow
   if (!language || !code) throw new Error("sandbox_run requires language and code.");
   const timeoutMs = args.timeoutMs === undefined ? undefined : Number(args.timeoutMs);
   return runInSandbox({ language, code, ...(timeoutMs === undefined ? {} : { timeoutMs }) });
-}
-
-async function executeAuthenticatedGitHubTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> {
-  const owner = String(args.owner ?? "").trim();
-  const repo = String(args.repo ?? "").trim();
-  if (!owner || !repo) throw new Error("GitHub requires owner and repo.");
-  switch (toolName(tool)) {
-    case "github_write_file": return githubWriteFile({ owner, repo, path: String(args.path ?? ""), content: String(args.content ?? ""), message: String(args.message ?? "Bossnu update"), sha: args.sha ? String(args.sha) : undefined, branch: args.branch ? String(args.branch) : undefined });
-    case "github_create_branch": return githubCreateBranch({ owner, repo, branch: String(args.branch ?? ""), from: args.from ? String(args.from) : undefined });
-    case "github_create_pull_request": return githubCreatePullRequest({ owner, repo, head: String(args.head ?? ""), base: args.base ? String(args.base) : undefined, title: String(args.title ?? ""), body: args.body ? String(args.body) : undefined });
-    case "github_create_issue": return githubCreateIssue({ owner, repo, title: String(args.title ?? ""), body: args.body ? String(args.body) : undefined });
-    case "github_actions": return githubActions({ owner, repo, branch: args.branch ? String(args.branch) : undefined });
-    case "github_dispatch_workflow": return githubDispatchWorkflow({ owner, repo, workflow: String(args.workflow ?? ""), branch: args.branch ? String(args.branch) : undefined, inputs: args.inputs && typeof args.inputs === "object" ? args.inputs as Record<string, string> : undefined });
-    case "github_wait_for_workflow": return githubWaitForWorkflow({ owner, repo, runId: Number(args.runId), timeoutMs: args.timeoutMs ? Number(args.timeoutMs) : undefined, pollMs: args.pollMs ? Number(args.pollMs) : undefined });
-    case "github_get_repo": return githubStatus(owner, repo);
-    default: throw new Error(`Unknown authenticated GitHub tool: ${toolName(tool)}`);
-  }
 }
 
 async function executeGitHubTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> {
