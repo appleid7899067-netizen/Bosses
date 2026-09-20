@@ -118,7 +118,16 @@ function ChatPage() {
         return;
       }
     }
-    const attachmentDetails = attachments.length ? await Promise.all(attachments.map(async (f) => `- ${f.name} (${f.type || "unknown"}, ${Math.ceil(f.size / 1024)} KB)\n  ${await describeAttachment(f)}`)) : [];\n    const attachmentContext = attachmentDetails.length ? `\n\nAttached files:\n${attachmentDetails.join("\n")}` : "";
+    const attachmentDetails = attachments.length
+      ? await Promise.all(
+          attachments.map(async (f) =>
+            `- ${f.name} (${f.type || "unknown"}, ${Math.ceil(f.size / 1024)} KB)\\n  ${await describeAttachment(f)}`,
+          ),
+        )
+      : [];
+    const attachmentContext = attachmentDetails.length
+      ? `\\n\\nAttached files:\\n${attachmentDetails.join("\\n")}`
+      : "";
     const text = normalizeToolPrompt((draft.trim() || "Analyze the attached files") + attachmentContext, thread.mcp);
     setDraft("");
     setAttachments([]);
