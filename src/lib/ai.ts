@@ -9,7 +9,7 @@ import {
   readGitHubFile,
   writeGitHubFile,
 } from "@/lib/github.functions";
-import { chatWithOpenRouter, chatWithPuter, type ChatResult, type ChatTurn } from "@/lib/puter";
+import { chatWithPuter, type ChatResult, type ChatTurn } from "@/lib/puter";
 import { callWithFallback, loadCodingFleetTools } from "@/lib/puter-tool-loader";
 
 export type FleetRequest = {
