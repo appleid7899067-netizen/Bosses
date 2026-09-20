@@ -23,6 +23,8 @@ export type OpenRouterModel = {
   architecture?: { input_modalities?: string[]; output_modalities?: string[] };
 };
 
+export const API_KEY_CHANGED_EVENT = "bosses:api-key-changed";
+
 let memoryKey: string | null = null;
 
 function sessionGet() {
@@ -35,6 +37,13 @@ function sessionSet(value: string | null) {
   } catch {}
 }
 
+function notifyKeyChanged() {
+  if (typeof window === "undefined") return;
+  try {
+    window.dispatchEvent(new Event(API_KEY_CHANGED_EVENT));
+  } catch {}
+}
+
 export function getActiveApiKey() {
   return memoryKey ?? sessionGet();
 }
@@ -42,6 +51,7 @@ export function getActiveApiKey() {
 export function clearActiveApiKey() {
   memoryKey = null;
   sessionSet(null);
+  notifyKeyChanged();
 }
 
 export function hasOpenRouterKey() {
@@ -71,7 +81,6 @@ function modelKeys(model: PuterModel): string[] {
 }
 
 export function filterOpenRouterToPuterModels(openRouterModels: OpenRouterModel[], puterModels: PuterModel[]): OpenRouterModel[] {
-  // Optional overlap helper only. OpenRouter auth never becomes Puter auth.
   const puterKeys = new Set(puterModels.flatMap(modelKeys));
   return openRouterModels.filter((model) => {
     const id = model.id.trim().toLowerCase();
@@ -90,7 +99,6 @@ export async function verifyOpenRouterKey(key: string): Promise<{ ok: true; mode
   }
   const data = await response.json() as { data?: OpenRouterModel[] };
   const openRouterModels = Array.isArray(data.data) ? data.data : [];
-  // OpenRouter key authenticates OpenRouter only. Puter catalog is optional.
   return { ok: true, models: openRouterModels.filter((m) => !/image|audio|video|embedding|rerank|transcription/i.test(m.id)) };
 }
 
@@ -110,6 +118,7 @@ export async function connectApiKey(key: string): Promise<{ detection: ProviderD
 
   memoryKey = value;
   sessionSet(value);
+  notifyKeyChanged();
   return { detection, models: verified.models };
 }
 

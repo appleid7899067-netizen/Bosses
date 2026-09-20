@@ -23,7 +23,7 @@ export function ProviderKeyBar() {
       const result = await connectApiKey(key);
       setStatus(`${result.detection.label} · ${result.models.length} models`);
       setValue("");
-      toast.success(`ตรวจพบ ${result.detection.label} และตรวจคีย์ผ่านแล้ว`);
+      toast.success(`OpenRouter พร้อมใช้งาน — แชทได้โดยไม่ต้องล็อกอิน Puter`);
     } catch (error) {
       setStatus("");
       toast.error(error instanceof Error ? error.message : "ตรวจคีย์ไม่สำเร็จ");
@@ -36,7 +36,7 @@ export function ProviderKeyBar() {
     clearActiveApiKey();
     setStatus("");
     setValue("");
-    toast.success("ถอด API key ออกจากเซสชันแล้ว");
+    toast.success("ถอด OpenRouter key แล้ว");
   }
 
   return (
@@ -48,7 +48,7 @@ export function ProviderKeyBar() {
         onKeyDown={(e) => { if (e.key === "Enter") void connect(); }}
         type="password"
         autoComplete="off"
-        placeholder="ใส่ API key · Boss ตรวจแบรนด์ให้อัตโนมัติ"
+        placeholder="ใส่ OpenRouter key (sk-or-...) · ไม่ต้องล็อกอิน Puter"
         className="min-w-[14rem] flex-1 border-0 bg-transparent shadow-none"
       />
       <Button size="sm" onClick={() => void connect()} disabled={busy || !value.trim()}>
