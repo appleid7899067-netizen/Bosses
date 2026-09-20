@@ -1,5 +1,6 @@
 import { ensurePuter, extractText } from "@/lib/puter";
 import { runInSandbox } from "@/lib/sandbox";
+import { githubActions, githubCreateBranch, githubCreateIssue, githubCreatePullRequest, githubDispatchWorkflow, githubGetFile, githubStatus, githubWaitForWorkflow, githubWriteFile } from "@/lib/github-app.server";
 
 export type CodingFleetTool = {
   name?: string;
@@ -161,6 +162,19 @@ async function executeWebCheck(args: Record<string, unknown>): Promise<unknown> 
   }
 }
 
+function nativeAuthenticatedGitHubTools(): CodingFleetTool[] {
+  return [
+    { name: "github_write_file", description: "Write/update a repository file using the installed GitHub App. This creates a real Git commit on the target branch.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, path: { type: "string" }, content: { type: "string" }, message: { type: "string" }, sha: { type: "string" }, branch: { type: "string" } }, required: ["owner", "repo", "path", "content", "message"], additionalProperties: false }, githubSource: true },
+    { name: "github_create_branch", description: "Create a real Git branch from the default branch or a specified base ref.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, branch: { type: "string" }, from: { type: "string" } }, required: ["owner", "repo", "branch"], additionalProperties: false }, githubSource: true },
+    { name: "github_create_pull_request", description: "Open a real GitHub Pull Request from a changed branch.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, head: { type: "string" }, base: { type: "string" }, title: { type: "string" }, body: { type: "string" } }, required: ["owner", "repo", "head", "title"], additionalProperties: false }, githubSource: true },
+    { name: "github_create_issue", description: "Create a real GitHub issue.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, title: { type: "string" }, body: { type: "string" } }, required: ["owner", "repo", "title"], additionalProperties: false }, githubSource: true },
+    { name: "github_actions", description: "Inspect recent GitHub Actions runs, including status, conclusion and commit SHA.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, branch: { type: "string" } }, required: ["owner", "repo"], additionalProperties: false }, githubSource: true },
+    { name: "github_dispatch_workflow", description: "Dispatch a real GitHub Actions workflow.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, workflow: { type: "string" }, branch: { type: "string" }, inputs: { type: "object", additionalProperties: { type: "string" } } }, required: ["owner", "repo", "workflow"], additionalProperties: false }, githubSource: true },
+    { name: "github_wait_for_workflow", description: "Wait for a GitHub Actions run and return verified completion.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" }, runId: { type: "integer" }, timeoutMs: { type: "integer" }, pollMs: { type: "integer" } }, required: ["owner", "repo", "runId"], additionalProperties: false }, githubSource: true },
+    { name: "github_get_repo", description: "Read authenticated GitHub repository metadata.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" } }, required: ["owner", "repo"], additionalProperties: false }, githubSource: true }
+  ];
+}
+
 function nativeGitHubTools(): CodingFleetTool[] {
   return [
     { name: "github_get_repo", description: "Read public GitHub repository metadata. No GitHub credential is required for public repositories.", inputSchema: { type: "object", properties: { owner: { type: "string" }, repo: { type: "string" } }, required: ["owner", "repo"], additionalProperties: false }, githubSource: true },
@@ -175,6 +189,23 @@ async function executeSandboxTool(args: Record<string, unknown>): Promise<unknow
   if (!language || !code) throw new Error("sandbox_run requires language and code.");
   const timeoutMs = args.timeoutMs === undefined ? undefined : Number(args.timeoutMs);
   return runInSandbox({ language, code, ...(timeoutMs === undefined ? {} : { timeoutMs }) });
+}
+
+async function executeAuthenticatedGitHubTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> {
+  const owner = String(args.owner ?? "").trim();
+  const repo = String(args.repo ?? "").trim();
+  if (!owner || !repo) throw new Error("GitHub requires owner and repo.");
+  switch (toolName(tool)) {
+    case "github_write_file": return githubWriteFile({ owner, repo, path: String(args.path ?? ""), content: String(args.content ?? ""), message: String(args.message ?? "Bossnu update"), sha: args.sha ? String(args.sha) : undefined, branch: args.branch ? String(args.branch) : undefined });
+    case "github_create_branch": return githubCreateBranch({ owner, repo, branch: String(args.branch ?? ""), from: args.from ? String(args.from) : undefined });
+    case "github_create_pull_request": return githubCreatePullRequest({ owner, repo, head: String(args.head ?? ""), base: args.base ? String(args.base) : undefined, title: String(args.title ?? ""), body: args.body ? String(args.body) : undefined });
+    case "github_create_issue": return githubCreateIssue({ owner, repo, title: String(args.title ?? ""), body: args.body ? String(args.body) : undefined });
+    case "github_actions": return githubActions({ owner, repo, branch: args.branch ? String(args.branch) : undefined });
+    case "github_dispatch_workflow": return githubDispatchWorkflow({ owner, repo, workflow: String(args.workflow ?? ""), branch: args.branch ? String(args.branch) : undefined, inputs: args.inputs && typeof args.inputs === "object" ? args.inputs as Record<string, string> : undefined });
+    case "github_wait_for_workflow": return githubWaitForWorkflow({ owner, repo, runId: Number(args.runId), timeoutMs: args.timeoutMs ? Number(args.timeoutMs) : undefined, pollMs: args.pollMs ? Number(args.pollMs) : undefined });
+    case "github_get_repo": return githubStatus(owner, repo);
+    default: throw new Error(`Unknown authenticated GitHub tool: ${toolName(tool)}`);
+  }
 }
 
 async function executeGitHubTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> {
@@ -244,7 +275,7 @@ export async function loadCodingFleetTools(forceRefresh = false): Promise<Coding
   const codingFleet = sources[0].status === "fulfilled" ? sources[0].value : [];
   const pluginTools = sources[1].status === "fulfilled" ? sources[1].value : [];
   const mcpTools = sources[2].status === "fulfilled" ? sources[2].value : [];
-  const nativeTools = [...nativeSandboxTools(), ...nativeWebTools(), ...nativeGitHubTools()];
+  const nativeTools = [...nativeSandboxTools(), ...nativeWebTools(), ...nativeAuthenticatedGitHubTools(), ...nativeGitHubTools()];
   const remoteTools = [...codingFleet, ...pluginTools, ...mcpTools];
   const tools = [...nativeTools, ...remoteTools].slice(0, TOOL_LIMIT);
   if (tools.length > 0) { cachedTools = tools; cachedAt = Date.now(); return tools; }
@@ -259,7 +290,7 @@ function assistantToolMessage(response: unknown): Record<string, unknown> | null
 function resolveEndpoint(tool: CodingFleetTool): string | null { const candidate = tool.endpoint ?? tool.url; if (typeof candidate !== "string" || !candidate.trim()) return null; try { return new URL(candidate, `${CODINGFLEET_BASE}/`).toString(); } catch { return null; } }
 
 async function executePluginTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> { const endpoint = resolveEndpoint(tool); if (!endpoint) throw new Error(`Plugin ${toolName(tool)} has no callable endpoint.`); const method = String(tool.method ?? "POST").toUpperCase(); const response = await fetch(endpoint, { method, headers: { Accept: "application/json", "Content-Type": "application/json" }, ...(method === "GET" || method === "HEAD" ? {} : { body: JSON.stringify({ arguments: args }) }) }); const text = await response.text(); if (!response.ok) throw new Error(`Plugin ${String(tool.pluginName ?? toolName(tool))} returned HTTP ${response.status}: ${text.slice(0, 240)}`); try { return JSON.parse(text); } catch { return text; } }
-async function executeTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> { if (toolName(tool) === "sandbox_run") return executeSandboxTool(args); if (toolName(tool) === "web_check") return executeWebCheck(args); if (tool.githubSource) return executeGitHubTool(tool, args); if (tool.mcpServer) return callPublicMcpTool(tool, args); if (tool.pluginSource) return executePluginTool(tool, args); const endpoint = resolveEndpoint(tool); if (!endpoint) throw new Error(`Tool ${toolName(tool)} has no callable HTTPS endpoint.`); const response = await fetch(endpoint, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ tool: tool.slug ?? toolName(tool), arguments: args }) }); const text = await response.text(); if (!response.ok) throw new Error(`Tool ${toolName(tool)} returned HTTP ${response.status}: ${text.slice(0, 240)}`); try { return JSON.parse(text); } catch { return text; } }
+async function executeTool(tool: CodingFleetTool, args: Record<string, unknown>): Promise<unknown> { if (toolName(tool) === "sandbox_run") return executeSandboxTool(args); if (toolName(tool) === "web_check") return executeWebCheck(args); if (tool.githubSource && ["github_write_file","github_create_branch","github_create_pull_request","github_create_issue","github_actions","github_dispatch_workflow","github_wait_for_workflow"].includes(toolName(tool))) return executeAuthenticatedGitHubTool(tool, args); if (tool.githubSource) return executeGitHubTool(tool, args); if (tool.mcpServer) return callPublicMcpTool(tool, args); if (tool.pluginSource) return executePluginTool(tool, args); const endpoint = resolveEndpoint(tool); if (!endpoint) throw new Error(`Tool ${toolName(tool)} has no callable HTTPS endpoint.`); const response = await fetch(endpoint, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ tool: tool.slug ?? toolName(tool), arguments: args }) }); const text = await response.text(); if (!response.ok) throw new Error(`Tool ${toolName(tool)} returned HTTP ${response.status}: ${text.slice(0, 240)}`); try { return JSON.parse(text); } catch { return text; } }
 
 async function chatModel(messages: Array<Record<string, unknown>>, tools: CodingFleetTool[], model: string): Promise<{ text: string; response: unknown; toolCalls: ToolCall[] }> { const puter = await ensurePuter(); if (!puter.auth.isSignedIn()) await puter.auth.signIn(); const response = await puter.ai.chat(messages, { model, tools: toPuterTools(tools), normalize: true, stream: false }); return { text: extractText(response), response, toolCalls: extractToolCalls(response) }; }
 
