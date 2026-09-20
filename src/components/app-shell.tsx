@@ -52,5 +52,5 @@ function Footer() {
 }
 
 export function AppShell({ children, marketing = false }: { children: ReactNode; marketing?: boolean }) {
-  return <div className="flex min-h-dvh flex-col bg-bg text-fg"><Header /><div className="flex-1">{children}</div>{marketing ? <Footer /> : null}</div>;
+  return <div className="flex min-h-dvh flex-col bg-bg text-fg"><Header /><div className="flex-1">{children}</div><Footer /></div>;
 }
