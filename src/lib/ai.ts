@@ -265,7 +265,13 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
   const systemPrompt = SYSTEM_PROMPTS[data.mode as keyof typeof SYSTEM_PROMPTS] ?? SYSTEM_PROMPTS.chat;
   if (isAutonomousRequest(data.prompt)) return runAutonomousAgent(data, onDelta, onActivity);
   const activeKey = getActiveApiKey();
-  if (activeKey || /^openrouter:/i.test(data.modelId || "")) {
+  // Provider routing is intentionally isolated:
+  // - built-in/puter:<model> selections stay on Puter.
+  // - openrouter:<model> selections use the OpenRouter key.
+  // A connected OpenRouter key must never silently replace the Puter channel.
+  const selectedModelId = (data.modelId || "").trim();
+  const isOpenRouterSelection = /^openrouter:/i.test(selectedModelId);
+  if (isOpenRouterSelection) {
     try {
       let models: Awaited<ReturnType<typeof verifyOpenRouterKey>> extends infer R ? R extends { ok: true } ? R["models"] : never : never = [];
       if (activeKey) {
@@ -273,7 +279,7 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
         if (!verified.ok) return { ok: false, error: verified.error };
         models = verified.models;
       }
-      const requested = (data.modelId || "").replace(/^openrouter:/i, "").replace(/^puter:/i, "").trim();
+      const requested = selectedModelId.replace(/^openrouter:/i, "").trim();
       const selected = requested
         ? models.find((m) => m.id === requested) ?? models.find((m) => m.id.split("/").pop() === requested)
         : chooseOpenRouterModel(models, data.prompt);
