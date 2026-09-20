@@ -1,4 +1,4 @@
-undefinedexport type PuterUser = {
+export type PuterUser = {
   username?: string;
   uuid?: string;
   email?: string;
