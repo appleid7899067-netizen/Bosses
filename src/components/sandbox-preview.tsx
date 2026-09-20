@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Play, RotateCcw, TerminalSquare, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+type SandboxPreviewProps = { files?: File[] };
+
 type WebContainerInstance = {
   mount(files: Record<string, unknown>): Promise<void>;
   spawn(command: string, args?: string[]): Promise<{ exit: Promise<number> }>;
@@ -9,7 +11,7 @@ type WebContainerInstance = {
   teardown(): Promise<void>;
 };
 
-export function SandboxPreview() {
+export function SandboxPreview({ files = [] }: SandboxPreviewProps) {
   const containerRef = useRef<WebContainerInstance | null>(null);
   const processRef = useRef<{ exit: Promise<number> } | null>(null);
   const [status, setStatus] = useState("พร้อมรัน");
@@ -27,37 +29,22 @@ export function SandboxPreview() {
       const { WebContainer } = await loadWebContainer();
       const container = await WebContainer.boot();
       containerRef.current = container as WebContainerInstance;
-      await container.mount({
-        "package.json": {
-          file: {
-            contents: JSON.stringify({
-              scripts: { dev: "vite --host 0.0.0.0" },
-              dependencies: { "@vitejs/plugin-react": "latest", vite: "latest", react: "latest", "react-dom": "latest" },
-              devDependencies: {},
-            }, null, 2),
-          },
-        },
-        "index.html": {
-          file: { contents: '<div id="root"></div><script type="module" src="/src/main.jsx"></script>' },
-        },
-        "vite.config.js": {
-          file: { contents: "import { defineConfig } from 'vite'; import react from '@vitejs/plugin-react'; export default defineConfig({plugins:[react()]});" },
-        },
-        "src": {
-          directory: {
-            "main.jsx": {
-              file: {
-                contents: "import React from 'react'; import {createRoot} from 'react-dom/client'; import './style.css'; const App=()=>React.createElement('main',{className:'app'},React.createElement('h1',null,'Boss Sandbox'),React.createElement('p',null,'WebContainer runtime is running.'),React.createElement('button',{onClick:()=>alert('Sandbox OK')},'Test')); createRoot(document.getElementById('root')).render(React.createElement(App));",
-              },
-            },
-            "style.css": {
-              file: { contents: "body{margin:0;font-family:system-ui;background:#111827;color:#f8fafc}.app{padding:40px;max-width:720px;margin:auto}button{padding:10px 16px;border-radius:10px;border:0;cursor:pointer}" },
-            },
-          },
-        },
-      });
+      const projectFiles: Record<string, unknown> = {};
+      for (const file of files.slice(0, 40)) {
+        if (file.name.toLowerCase().endsWith(".zip")) continue;
+        const readable = file.type.startsWith("text/") || /\.(json|js|jsx|ts|tsx|css|html|md|txt|yml|yaml|xml|py|go|rs|java|sql)$/i.test(file.name);
+        if (!readable || file.size > 2_000_000) continue;
+        projectFiles[file.name.replace(/^[/\\\\]+/, "")] = { file: { contents: await file.text() } };
+      }
+      if (!projectFiles["package.json"]) projectFiles["package.json"] = { file: { contents: JSON.stringify({
+        scripts: { dev: "vite --host 0.0.0.0" },
+        dependencies: { "@vitejs/plugin-react": "latest", vite: "latest", react: "latest", "react-dom": "latest" },
+      }, null, 2) } };
+      if (!projectFiles["index.html"]) projectFiles["index.html"] = { file: { contents: '<div id="root"></div><script type="module" src="/src/main.jsx"></script>' } };
+      if (!projectFiles["src/main.jsx"]) projectFiles["src/main.jsx"] = { file: { contents: "import React from 'react'; import {createRoot} from 'react-dom/client'; const App=()=>React.createElement('main',{style:{padding:40,fontFamily:'system-ui'}},React.createElement('h1',null,'Boss Sandbox'),React.createElement('p',null,'Runtime is running.')); createRoot(document.getElementById('root')).render(React.createElement(App));" } };
+      await container.mount(projectFiles);
       setStatus("กำลังติดตั้ง dependencies...");
-      setLogs(["npm install"]);
+      setLogs([files.length ? `mount: ${files.length} attached file(s)` : "mount: starter project", "npm install"]);
       processRef.current = await container.spawn("npm", ["install"]);
       const installCode = await processRef.current.exit;
       if (installCode !== 0) throw new Error("npm install failed");
