@@ -33,6 +33,9 @@ function diagnoseToolFailure(item: ToolExecutionResult): string {
   if (/404|not found|module not found/.test(text)) return `Root cause hint: missing route/resource/module from ${item.name}.`;
   if (/eaddrinuse|address already in use|port/.test(text)) return `Root cause hint: port/process conflict from ${item.name}.`;
   if (/typescript|ts\\d+|type error/.test(text)) return `Root cause hint: TypeScript/type-check failure from ${item.name}.`;
+  if (/eslint|lint/.test(text)) return `Root cause hint: lint/style-check failure from ${item.name}.`;
+  if (/npm err|pnpm|yarn|package|dependency|cannot find module/.test(text)) return `Root cause hint: dependency/package resolution failure from ${item.name}.`;
+  if (/referenceerror|typeerror|cannot read propert|undefined is not/.test(text)) return `Root cause hint: runtime JavaScript error from ${item.name}.`;
   if (/syntaxerror|parse error|unexpected token/.test(text)) return `Root cause hint: syntax/parse failure from ${item.name}.`;
   return `Root cause hint: inspect the concrete error from ${item.name}; do not guess.`;
 }
