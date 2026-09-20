@@ -89,6 +89,7 @@ type FleetState = {
   toggleRoutine: (id: string) => void;
   markRoutineRun: (id: string) => void;
   addMemory: (text: string) => void;
+  learnMemory: (text: string) => void;
   removeMemory: (id: string) => void;
 };
 
@@ -260,6 +261,13 @@ export const useFleet = create<FleetState>()(
         set({
           memory: [{ id: uid("mem"), text, createdAt: Date.now() }, ...get().memory].slice(0, 24),
         }),
+      learnMemory: (text) => {
+        const normalized = text.trim();
+        if (!normalized) return;
+        const current = get().memory;
+        if (current.some((item) => item.text === normalized)) return;
+        set({ memory: [{ id: uid("mem"), text: normalized, createdAt: Date.now() }, ...current].slice(0, 48) });
+      },
       removeMemory: (id) => set({ memory: get().memory.filter((m) => m.id !== id) }),
     }),
     { name: "copilot-chat-store" },
