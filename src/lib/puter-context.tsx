@@ -48,9 +48,9 @@ export function PuterProvider({ children }: { children: ReactNode }) {
   const signIn = useCallback(async () => {
     setError(null);
     try {
-      const next = await signInWithPuter();
-      setSignedIn(Boolean(next) || (await ensurePuter()).auth.isSignedIn());
-      setUser(next ?? (await currentPuterUser()));
+      const next = await signInWithPuter(true);
+      setSignedIn(Boolean(next));
+      setUser(next);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Sign-in failed.";
       setError(msg);
