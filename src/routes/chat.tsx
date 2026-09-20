@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Archive, FileText, Loader2, Paperclip, Pin, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { MarkdownOutput } from "@/components/markdown-output";
@@ -13,7 +13,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { runFleet } from "@/lib/ai";
 import { AGENTS, modelById } from "@/lib/catalog";
-import { getActiveApiKey } from "@/lib/provider-keys";
+import { API_KEY_CHANGED_EVENT, getActiveApiKey } from "@/lib/provider-keys";
 import { usePuter } from "@/lib/puter-context";
 import { useFleet } from "@/lib/store";
 
@@ -54,7 +54,17 @@ function ChatPage() {
   const memory = useFleet((s) => s.memory);
   const learnMemory = useFleet((s) => s.learnMemory);
   const { signedIn } = usePuter();
-  const openRouterConnected = Boolean(getActiveApiKey());
+  const [openRouterConnected, setOpenRouterConnected] = useState(() => Boolean(getActiveApiKey()));
+  useEffect(() => {
+    const sync = () => setOpenRouterConnected(Boolean(getActiveApiKey()));
+    sync();
+    window.addEventListener(API_KEY_CHANGED_EVENT, sync);
+    window.addEventListener("storage", sync);
+    return () => {
+      window.removeEventListener(API_KEY_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", sync);
+    };
+  }, []);
   const canChat = signedIn || openRouterConnected;
 
   const thread = threads.find((t) => t.id === activeThreadId) ?? threads[0];
@@ -249,28 +259,13 @@ function ChatPage() {
                     t.id === thread.id ? "bg-elevated text-fg" : "text-muted hover:bg-elevated/60 hover:text-fg"
                   }`}
                 >
-                  <button
-                    type="button"
-                    className="min-w-0 flex-1 truncate text-left"
-                    onClick={() => setActiveThread(t.id)}
-                  >
-                    {t.pinned ? "· " : ""}
-                    {t.title}
+                  <button type="button" className="min-w-0 flex-1 truncate text-left" onClick={() => setActiveThread(t.id)}>
+                    {t.pinned ? "· " : ""}{t.title}
                   </button>
-                  <button
-                    type="button"
-                    className="hidden size-7 items-center justify-center rounded-sm group-hover:flex hover:bg-bg"
-                    onClick={() => pinThread(t.id)}
-                    aria-label="Pin"
-                  >
+                  <button type="button" className="hidden size-7 items-center justify-center rounded-sm group-hover:flex hover:bg-bg" onClick={() => pinThread(t.id)} aria-label="Pin">
                     <Pin className="size-3.5" />
                   </button>
-                  <button
-                    type="button"
-                    className="hidden size-7 items-center justify-center rounded-sm text-subtle group-hover:flex hover:text-danger"
-                    onClick={() => deleteThread(t.id)}
-                    aria-label="Delete"
-                  >
+                  <button type="button" className="hidden size-7 items-center justify-center rounded-sm text-subtle group-hover:flex hover:text-danger" onClick={() => deleteThread(t.id)} aria-label="Delete">
                     <Trash2 className="size-3.5" />
                   </button>
                 </div>
@@ -295,30 +290,15 @@ function ChatPage() {
               {thread.messages.map((m) => (
                 <div key={m.id} className={m.role === "user" ? "ml-8" : "mr-4"}>
                   <p className="mb-1 text-xs uppercase tracking-wider text-subtle">
-                    {m.role === "user" ? "You" : "Copilot"}
-                    {m.model ? ` · ${m.model}` : ""}
+                    {m.role === "user" ? "You" : "Copilot"}{m.model ? ` · ${m.model}` : ""}
                   </p>
                   {m.attachments && m.attachments.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{m.attachments.map((file) => <Badge key={`${m.id}-${file.name}`}>📎 {file.name}</Badge>)}</div>}
                   {m.activity && m.activity.length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-1">
-                      {m.activity.map((a) => (
-                        <Badge key={a}>{a}</Badge>
-                      ))}
-                    </div>
+                    <div className="mb-2 flex flex-wrap gap-1">{m.activity.map((a) => <Badge key={a}>{a}</Badge>)}</div>
                   )}
-                  <div
-                    className={
-                      m.role === "user"
-                        ? "rounded-lg bg-elevated px-3 py-2 text-sm shadow-[var(--shadow-border)]"
-                        : ""
-                    }
-                  >
+                  <div className={m.role === "user" ? "rounded-lg bg-elevated px-3 py-2 text-sm shadow-[var(--shadow-border)]" : ""}>
                     {m.role === "assistant" ? (
-                      m.content ? (
-                        <MarkdownOutput text={m.content} />
-                      ) : (
-                        <span className="text-sm text-muted">Thinking…</span>
-                      )
+                      m.content ? <MarkdownOutput text={m.content} /> : <span className="text-sm text-muted">Thinking…</span>
                     ) : (
                       <p className="whitespace-pre-wrap">{m.content}</p>
                     )}
@@ -328,11 +308,7 @@ function ChatPage() {
               {busy && (
                 <div className="flex items-center gap-2 text-sm text-muted">
                   <Loader2 className="size-4 animate-spin text-primary" />
-                  {openRouterConnected && !signedIn
-                    ? "Streaming from OpenRouter…"
-                    : thread.tools.agents
-                      ? "Agents running…"
-                      : "Streaming…"}
+                  {openRouterConnected && !signedIn ? "Streaming from OpenRouter…" : thread.tools.agents ? "Agents running…" : "Streaming…"}
                 </div>
               )}
             </div>
@@ -356,7 +332,7 @@ function ChatPage() {
                       void send();
                     }
                   }}
-                  placeholder={canChat ? "Ask Copilot…  Shift+Enter for a newline" : "ใส่ OpenRouter key หรือ Sign in with Puter ก่อน…"}
+                  placeholder={canChat ? "Ask Copilot…  Shift+Enter for a newline" : "ใส่ OpenRouter key (sk-or-...) — ไม่ต้องล็อกอิน Puter"}
                   className="min-h-12 border-0 bg-transparent shadow-none focus-visible:shadow-none"
                   rows={2}
                 />
@@ -366,7 +342,9 @@ function ChatPage() {
               </div>
               <p className="mt-2 flex items-center gap-1 text-xs text-subtle">
                 <Sparkles className="size-3" />
-                Enter send · Shift+Enter newline · OpenRouter key หรือ Puter login
+                {canChat
+                  ? (openRouterConnected ? "พร้อมแชทผ่าน OpenRouter (ไม่ต้อง Puter)" : "พร้อมแชทผ่าน Puter")
+                  : "ใส่ OpenRouter key หรือ Sign in with Puter"}
               </p>
             </div>
           </div>
