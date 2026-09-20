@@ -139,7 +139,15 @@ export async function signInWithPuter(forceReauth = false): Promise<PuterUser | 
 }
 export async function signOutPuter() { const puter = await ensurePuter(); await puter.auth.signOut(); }
 export async function currentPuterUser(): Promise<PuterUser | null> {
-  try { const puter = await ensurePuter(); if (!puter.auth.isSignedIn()) return null; return await puter.auth.getUser(); } catch { return null; }
+  try {
+    const puter = await ensurePuter();
+    if (!puter.auth.isSignedIn()) return null;
+    const user = await puter.auth.getUser();
+    if (user.requires_phone_verification) return null;
+    return user;
+  } catch {
+    return null;
+  }
 }
 
 export async function chatWithPuter(opts: { messages: ChatTurn[]; model: string; onDelta?: (full: string) => void }): Promise<ChatResult> {
