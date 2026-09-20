@@ -11,7 +11,7 @@ import {
 } from "@/lib/github.functions";
 import { chatWithPuter, type ChatResult, type ChatTurn } from "@/lib/puter";
 import { callWithFallback, loadCodingFleetTools } from "@/lib/puter-tool-loader";
-import { callOpenRouter, chooseOpenRouterModel, getActiveApiKey, verifyOpenRouterKey } from "@/lib/provider-keys";
+import { callOpenRouter, chooseOpenRouterModel, fetchPuterModelCatalog, filterOpenRouterToPuterModels, getActiveApiKey, verifyOpenRouterKey } from "@/lib/provider-keys";
 
 export type FleetRequest = {
   mode: keyof typeof SYSTEM_PROMPTS | string;
@@ -273,11 +273,15 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
         if (!verified.ok) return { ok: false, error: verified.error };
         models = verified.models;
       }
-      const requested = (data.modelId || "").replace(/^openrouter:/i, "").trim();
+      let puterModels: Awaited<ReturnType<typeof fetchPuterModelCatalog>> = [];
+      try { puterModels = await fetchPuterModelCatalog(); }
+      catch (error) { return { ok: false, error: `อ่าน Puter model catalog ไม่สำเร็จ: ${error instanceof Error ? error.message : String(error)}` }; }
+      const puterCompatible = filterOpenRouterToPuterModels(models, puterModels);
+      const requested = (data.modelId || "").replace(/^openrouter:/i, "").replace(/^puter:/i, "").trim();
       const selected = requested
-        ? models.find((m) => m.id === requested)
-        : chooseOpenRouterModel(models, data.prompt);
-      if (!selected) return { ok: false, error: "เชื่อม OpenRouter แล้ว แต่ยังหาโมเดลที่ใช้ได้จาก catalog ไม่พบ" };
+        ? puterCompatible.find((m) => m.id === requested) ?? puterCompatible.find((m) => m.id.split("/").pop() === requested)
+        : chooseOpenRouterModel(puterCompatible, data.prompt);
+      if (!selected) return { ok: false, error: "OpenRouter key ใช้งานได้ แต่ไม่มีโมเดลที่ตรงกับ catalog ของ Puter และมีให้เรียกผ่าน OpenRouter ในขณะนี้" };
       const openRouterResult = await callOpenRouter({
         messages: [
           { role: "system", content: systemPrompt },
@@ -288,7 +292,7 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
         onDelta,
       });
       if (openRouterResult.ok) {
-        const activity = ["🔑 ตรวจ API key", `🏷️ Provider: OpenRouter`, `🧭 Auto model: ${selected.id}`, "⚙️ เรียกโมเดล", "✅ ส่งผลลัพธ์"];
+        const activity = ["🔑 ตรวจ API key", "🧩 ตรวจ catalog ของ Puter", `🏷️ Gateway: OpenRouter`, `🧭 Puter-compatible model: ${selected.id}`, "⚙️ เรียกโมเดลผ่าน OpenRouter", "✅ ส่งผลลัพธ์"];
         onActivity?.(activity);
         return { ok: true, text: openRouterResult.text, model: `openrouter:${selected.id}`, activity };
       }
