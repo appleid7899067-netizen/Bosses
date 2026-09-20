@@ -11,6 +11,7 @@ import {
 } from "@/lib/github.functions";
 import { chatWithPuter, type ChatResult, type ChatTurn } from "@/lib/puter";
 import { callWithFallback, loadCodingFleetTools } from "@/lib/puter-tool-loader";
+import { callOpenRouter, chooseOpenRouterModel, getActiveApiKey, verifyOpenRouterKey } from "@/lib/provider-keys";
 
 export type FleetRequest = {
   mode: keyof typeof SYSTEM_PROMPTS | string;
@@ -261,6 +262,41 @@ function isAutonomousRequest(prompt: string) {
 }
 
 export async function runFleet(data: FleetRequest, onDelta?: (full: string) => void, onActivity?: (activity: string[]) => void): Promise<ChatResult> {
+  const activeKey = getActiveApiKey();
+  if (activeKey || /^openrouter:/i.test(data.modelId || "")) {
+    try {
+      let models: Awaited<ReturnType<typeof verifyOpenRouterKey>> extends infer R ? R extends { ok: true } ? R["models"] : never : never = [];
+      if (activeKey) {
+        const verified = await verifyOpenRouterKey(activeKey);
+        if (!verified.ok) return { ok: false, error: verified.error };
+        models = verified.models;
+      }
+      const requested = (data.modelId || "").replace(/^openrouter:/i, "").trim();
+      const selected = requested
+        ? models.find((m) => m.id === requested)
+        : chooseOpenRouterModel(models, data.prompt);
+      if (!selected) return { ok: false, error: "เชื่อม OpenRouter แล้ว แต่ยังหาโมเดลที่ใช้ได้จาก catalog ไม่พบ" };
+      const openRouterResult = await callOpenRouter({
+        messages: [
+          { role: "system", content: systemPrompt },
+          ...(data.history ?? []).slice(-8),
+          { role: "user", content: userMessage },
+        ],
+        model: selected.id,
+        onDelta,
+      });
+      if (openRouterResult.ok) {
+        const activity = ["🔑 ตรวจ API key", `🏷️ Provider: OpenRouter`, `🧭 Auto model: ${selected.id}`, "⚙️ เรียกโมเดล", "✅ ส่งผลลัพธ์"];
+        onActivity?.(activity);
+        return { ok: true, text: openRouterResult.text, model: `openrouter:${selected.id}`, activity };
+      }
+      return openRouterResult;
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "OpenRouter request failed." };
+    }
+  }
+
+  if (isAutonomousRequest(data.prompt)) return runAutonomousAgent(data, onDelta, onActivity);
   if (isAutonomousRequest(data.prompt)) return runAutonomousAgent(data, onDelta, onActivity);
 
   const githubContext = await runGitHubCommand(data.prompt).catch((error) => `GitHub tool error: ${error instanceof Error ? error.message : String(error)}`);
