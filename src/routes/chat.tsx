@@ -339,47 +339,6 @@ function ChatPage() {
               <SandboxPreview />
             </div>
             <div className="mx-auto max-w-2xl">
-              <div className="mb-2 flex flex-wrap gap-3">
-                <ToolToggle
-                  icon={Globe}
-                  label="Web"
-                  on={thread.tools.web}
-                  onChange={(v) => updateTools(thread.id, { ...thread.tools, web: v })}
-                />
-                <ToolToggle
-                  icon={Code2}
-                  label="Code"
-                  on={thread.tools.code}
-                  onChange={(v) => updateTools(thread.id, { ...thread.tools, code: v })}
-                />
-                <ToolToggle
-                  icon={FileText}
-                  label="Files"
-                  on={thread.tools.files}
-                  onChange={(v) => updateTools(thread.id, { ...thread.tools, files: v })}
-                />
-                <ToolToggle
-                  icon={Bot}
-                  label="Agents"
-                  on={thread.tools.agents}
-                  onChange={(v) => updateTools(thread.id, { ...thread.tools, agents: v })}
-                />
-              </div>
-              <div className="mb-2 flex flex-wrap gap-1">
-                {MCP_SERVERS.slice(0, 8).map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => toggleMcp(thread.id, s.id)}
-                    title={s.id === "github" ? "GitHub is live: use 'ตรวจ repo' or 'github: status owner/repo'" : s.blurb}
-                    className={`rounded-full px-2 py-0.5 text-xs ${
-                      thread.mcp.includes(s.id) ? "bg-primary/15 text-primary" : "bg-elevated text-subtle"
-                    }`}
-                  >
-                    {s.name}
-                  </button>
-                ))}
-              </div>
               {previews.length > 0 && <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{previews.map((item, index) => <div key={`${item.file.name}-${index}`} className="relative overflow-hidden rounded-lg border border-border bg-elevated p-2">{item.url ? <img src={item.url} alt={item.file.name} className="h-24 w-full rounded object-cover" /> : <div className="flex h-24 flex-col items-center justify-center gap-1 text-muted">{item.file.name.toLowerCase().endsWith(".zip") ? <Archive className="size-7" /> : <FileText className="size-7" />}<span className="max-w-full truncate text-xs">{item.file.name}</span></div>}<button type="button" onClick={() => removeAttachment(index)} className="absolute right-1 top-1 rounded-full bg-bg/90 p-1" aria-label={`Remove ${item.file.name}`}><X className="size-3" /></button></div>)}</div>}
               <div className="flex items-end gap-2 rounded-lg bg-elevated p-2 shadow-[var(--shadow-border)]">
                 <input ref={fileInputRef} type="file" multiple accept="image/*,.zip,.pdf,.txt,.md,.json,.js,.ts,.tsx,.jsx,.py,.go,.rs,.java,.css,.html" className="hidden" onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)); e.currentTarget.value = ""; }} />
