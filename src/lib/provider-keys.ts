@@ -11,6 +11,8 @@ export type PuterModel = {
   provider?: string;
   name?: string;
   aliases?: string[];
+  context?: number;
+  max_tokens?: number;
 };
 
 export type OpenRouterModel = {
@@ -65,6 +67,9 @@ function modelKeys(model: PuterModel): string[] {
 }
 
 export function filterOpenRouterToPuterModels(openRouterModels: OpenRouterModel[], puterModels: PuterModel[]): OpenRouterModel[] {
+  // Important: the OpenRouter key authenticates OpenRouter. Puter is used only
+  // as the source of truth for which model IDs are exposed by Puter. We never
+  // pretend that an OpenRouter key is a Puter credential.
   const puterKeys = new Set(puterModels.flatMap(modelKeys));
   return openRouterModels.filter((model) => {
     const id = model.id.trim().toLowerCase();
@@ -88,6 +93,7 @@ export async function verifyOpenRouterKey(key: string): Promise<{ ok: true; mode
 export async function connectApiKey(key: string): Promise<{ detection: ProviderDetection; models: OpenRouterModel[] }> {
   const value = key.trim();
   if (!value) throw new Error("API key is empty.");
+  if (!/^sk-or-/i.test(value)) throw new Error("ต้องใช้ OpenRouter API key (sk-or-...)");
   const detection = detectKeyShape(value);
   if (detection.provider !== "openrouter") {
     throw new Error(`${detection.label}: ${detection.detail}`);
