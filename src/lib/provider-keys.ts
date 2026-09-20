@@ -100,6 +100,22 @@ export async function connectApiKey(key: string): Promise<{ detection: ProviderD
   }
   const verified = await verifyOpenRouterKey(value);
   if (!verified.ok) throw new Error(verified.error);
+
+  // OpenRouter authenticates the request. Puter supplies the model catalog.
+  // Only models exposed by both services are offered in this gateway mode.
+  let puterModels: PuterModel[] = [];
+  try {
+    puterModels = await fetchPuterModelCatalog();
+  } catch (error) {
+    throw new Error(
+      `เชื่อม OpenRouter ได้ แต่โหลดรายการโมเดล Puter ไม่สำเร็จ: ${error instanceof Error ? error.message : "unknown error"}`,
+    );
+  }
+  const puterCompatibleModels = filterOpenRouterToPuterModels(verified.models, puterModels);
+  if (!puterCompatibleModels.length) {
+    throw new Error("OpenRouter key ใช้งานได้ แต่ไม่พบโมเดลที่มีอยู่ทั้งใน Puter และ OpenRouter จึงยังไม่เปิดการเรียกโมเดล Puter ผ่าน gateway");
+  }
+
   memoryKey = value;
   sessionSet(value);
   return { detection, models: verified.models };
