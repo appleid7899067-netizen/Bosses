@@ -21,7 +21,8 @@ export function SandboxPreview() {
     setLogs([]);
     setUrl("");
     try {
-      const { WebContainer } = await import("@webcontainer/api");
+      const loadWebContainer = new Function("return import('https://esm.sh/@webcontainer/api@1.6.4')") as () => Promise<{ WebContainer: { boot(): Promise<WebContainerInstance> } }>;
+      const { WebContainer } = await loadWebContainer();
       const container = await WebContainer.boot();
       containerRef.current = container as WebContainerInstance;
       await container.mount({
