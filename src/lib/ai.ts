@@ -262,6 +262,7 @@ function isAutonomousRequest(prompt: string) {
 }
 
 export async function runFleet(data: FleetRequest, onDelta?: (full: string) => void, onActivity?: (activity: string[]) => void): Promise<ChatResult> {
+  const systemPrompt = SYSTEM_PROMPTS[data.mode as keyof typeof SYSTEM_PROMPTS] ?? SYSTEM_PROMPTS.chat;
   const activeKey = getActiveApiKey();
   if (activeKey || /^openrouter:/i.test(data.modelId || "")) {
     try {
@@ -300,7 +301,6 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
   if (isAutonomousRequest(data.prompt)) return runAutonomousAgent(data, onDelta, onActivity);
 
   const githubContext = await runGitHubCommand(data.prompt).catch((error) => `GitHub tool error: ${error instanceof Error ? error.message : String(error)}`);
-  const systemPrompt = SYSTEM_PROMPTS[data.mode as keyof typeof SYSTEM_PROMPTS] ?? SYSTEM_PROMPTS.chat;
   const userMessage = buildUserMessage(data, githubContext);
 
   // CodingFleet is an additive tool/model layer. If its public tool catalog is
