@@ -1,4 +1,4 @@
-export type PuterUser = {
+undefinedexport type PuterUser = {
   username?: string;
   uuid?: string;
   email?: string;
@@ -181,17 +181,3 @@ export async function chatWithPuter(opts: { messages: ChatTurn[]; model: string;
 }
 
 
-/**
- * Route a model through Puter's OpenRouter provider.
- * Puter documents this as a supported provider path, so the Boss can use
- * OpenRouter models without putting an OpenRouter API key in browser code.
- */
-export async function chatWithOpenRouter(opts: {
-  messages: ChatTurn[];
-  model: string;
-  onDelta?: (full: string) => void;
-}): Promise<ChatResult> {
-  const model = opts.model.replace(/^openrouter:/i, "").trim();
-  if (!model) return { ok: false, error: "OpenRouter model is required." };
-  return chatWithPuter({ ...opts, model, provider: "openrouter" });
-}
