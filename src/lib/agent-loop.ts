@@ -177,7 +177,11 @@ ${observedResults.length ? observedResults.join("\n") : "ไม่มี"}
 
 Actual failed tools from this round:
 ${failedTools.length ? failedTools.join("\n") : "ไม่มี"}
-${failedTools.length ? failedTools.join("\n") : "ไม่มี"}\n\nDeterministic diagnosis hints:\n${diagnosisHints.length ? diagnosisHints.join("\n") : "ไม่มี"}\n${verificationIssue}
+     ${failedTools.length ? failedTools.join("\n") : "ไม่มี"}
+
+Deterministic diagnosis hints:
+${diagnosisHints.length ? diagnosisHints.join("\n") : "ไม่มี"}
+${verificationIssue}
 
 Continue from the actual observations above. For every failed tool, diagnose the concrete error, make the smallest safe repair when appropriate, then rerun the relevant tool. If verification fails, diagnose and repair the root cause. Do not stop merely because a file was changed. Do not claim success until verification evidence exists.`;
   }
