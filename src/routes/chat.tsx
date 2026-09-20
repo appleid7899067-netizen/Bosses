@@ -54,7 +54,7 @@ function ChatPage() {
   const modelId = useFleet((s) => s.modelId);
   const memory = useFleet((s) => s.memory);
   const learnMemory = useFleet((s) => s.learnMemory);
-  const { signedIn, signIn } = usePuter();
+  const { signedIn } = usePuter();
 
   const thread = threads.find((t) => t.id === activeThreadId) ?? threads[0];
   const [draft, setDraft] = useState("");
@@ -141,12 +141,8 @@ function ChatPage() {
   async function send() {
     if (!thread || (!draft.trim() && attachments.length === 0) || busy) return;
     if (!signedIn) {
-      try {
-        await signIn();
-      } catch {
-        toast.error("Sign in with Puter to chat. Allow popups if blocked.");
-        return;
-      }
+      toast.error("กด Sign in with Puter ด้านบนก่อน แล้วค่อยส่งข้อความ");
+      return;
     }
     const attachmentDetails = attachments.length
       ? await Promise.all(
