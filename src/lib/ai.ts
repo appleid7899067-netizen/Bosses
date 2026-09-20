@@ -9,7 +9,7 @@ import {
   readGitHubFile,
   writeGitHubFile,
 } from "@/lib/github.functions";
-import { chatWithPuter, type ChatResult, type ChatTurn } from "@/lib/puter";
+import { chatWithOpenRouter, chatWithPuter, type ChatResult, type ChatTurn } from "@/lib/puter";
 import { callWithFallback, loadCodingFleetTools } from "@/lib/puter-tool-loader";
 
 export type FleetRequest = {
@@ -290,13 +290,14 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
     // Fall through to the existing Puter path; tool-catalog failure must not break chat.
   }
 
-  return chatWithPuter({
-    messages: [
-      { role: "system", content: systemPrompt },
-      ...(data.history ?? []).slice(-8),
-      { role: "user", content: userMessage },
-    ],
-    model: data.modelId || "gpt-5.6-luna",
-    onDelta,
-  });
+  const messages = [
+    { role: "system" as const, content: systemPrompt },
+    ...(data.history ?? []).slice(-8),
+    { role: "user" as const, content: userMessage },
+  ];
+  const selectedModel = data.modelId || "gpt-5.6-luna";
+  if (/^openrouter:/i.test(selectedModel)) {
+    return chatWithOpenRouter({ messages, model: selectedModel, onDelta });
+  }
+  return chatWithPuter({ messages, model: selectedModel, onDelta });
 }
