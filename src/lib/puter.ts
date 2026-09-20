@@ -107,10 +107,24 @@ function friendlyError(err: unknown): string {
   return raw.slice(0, 240);
 }
 
+let signInInFlight: Promise<PuterUser | null> | null = null;
+
 export async function signInWithPuter(): Promise<PuterUser | null> {
-  const puter = await ensurePuter(); await puter.auth.signIn();
-  if (!puter.auth.isSignedIn()) return null;
-  try { return await puter.auth.getUser(); } catch { return { username: "puter-user" }; }
+  if (signInInFlight) return signInInFlight;
+  signInInFlight = (async () => {
+    const puter = await ensurePuter();
+    if (puter.auth.isSignedIn()) {
+      try { return await puter.auth.getUser(); } catch { return { username: "puter-user" }; }
+    }
+    await puter.auth.signIn();
+    if (!puter.auth.isSignedIn()) return null;
+    try { return await puter.auth.getUser(); } catch { return { username: "puter-user" }; }
+  })();
+  try {
+    return await signInInFlight;
+  } finally {
+    signInInFlight = null;
+  }
 }
 export async function signOutPuter() { const puter = await ensurePuter(); await puter.auth.signOut(); }
 export async function currentPuterUser(): Promise<PuterUser | null> {
@@ -120,7 +134,7 @@ export async function currentPuterUser(): Promise<PuterUser | null> {
 export async function chatWithPuter(opts: { messages: ChatTurn[]; model: string; onDelta?: (full: string) => void }): Promise<ChatResult> {
   let puter: PuterAPI;
   try { puter = await ensurePuter(); } catch (err) { return { ok: false, error: friendlyError(err) }; }
-  if (!puter.auth.isSignedIn()) { try { await puter.auth.signIn(); } catch (err) { return { ok: false, error: friendlyError(err) }; } }
+  if (!puter.auth.isSignedIn()) return { ok: false, error: "Puter ยังไม่ได้เข้าสู่ระบบ กรุณากด Sign in with Puter ก่อน แล้วจึงลองส่งอีกครั้ง" };
   const payload = withCredentialPolicy(opts.messages).map((m) => ({ role: m.role, content: m.content }));
   const run = async (stream: boolean) => {
     const resp = await puter.ai.chat(payload, { model: opts.model, stream });
