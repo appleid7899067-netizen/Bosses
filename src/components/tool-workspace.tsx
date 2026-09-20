@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { runFleet } from "@/lib/ai";
 import type { FleetTool } from "@/lib/catalog";
+import { getActiveApiKey } from "@/lib/provider-keys";
 import { usePuter } from "@/lib/puter-context";
 import { useFleet } from "@/lib/store";
 
@@ -19,6 +20,8 @@ export function ToolWorkspace({ tool }: { tool: FleetTool }) {
   const modelId = useFleet((s) => s.modelId);
   const addGeneration = useFleet((s) => s.addGeneration);
   const { signedIn, signIn } = usePuter();
+  const openRouterConnected = Boolean(getActiveApiKey());
+  const canRun = signedIn || openRouterConnected;
 
   const [prompt, setPrompt] = useState(tool.samples[0]?.prompt ?? "");
   const [code, setCode] = useState(tool.samples[0]?.code ?? "");
@@ -30,12 +33,14 @@ export function ToolWorkspace({ tool }: { tool: FleetTool }) {
   const [files, setFiles] = useState<string[]>([]);
 
   async function generate() {
-    if (!signedIn) {
-      try {
-        await signIn();
-      } catch {
-        toast.error("Sign in with Puter to run free models. Allow popups if blocked.");
-        return;
+    if (!canRun) {
+      if (!signedIn && !openRouterConnected) {
+        try {
+          await signIn();
+        } catch {
+          toast.error("ใส่ OpenRouter API key หรือ Sign in with Puter เพื่อใช้งาน");
+          return;
+        }
       }
     }
     setBusy(true);
@@ -180,7 +185,7 @@ export function ToolWorkspace({ tool }: { tool: FleetTool }) {
               {busy ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
               {busy ? "Working" : tool.cta}
             </Button>
-            <span className="text-xs text-subtle">Free via Puter</span>
+            <span className="text-xs text-subtle">{openRouterConnected ? "via OpenRouter" : "Free via Puter"}</span>
           </div>
 
           {tool.samples.length > 1 && (
@@ -219,7 +224,7 @@ export function ToolWorkspace({ tool }: { tool: FleetTool }) {
               <MarkdownOutput text={output} className="flex-1 overflow-auto" />
             ) : (
               <div className="flex flex-1 items-center justify-center text-center text-sm text-subtle">
-                {busy ? "Writing…" : "Output lands here after you sign in with Puter."}
+                {busy ? "Writing…" : canRun ? "Output lands here after you run the tool." : "ใส่ OpenRouter key หรือ Sign in with Puter ก่อน"}
               </div>
             )}
           </div>

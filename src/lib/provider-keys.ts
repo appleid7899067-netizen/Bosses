@@ -44,6 +44,10 @@ export function clearActiveApiKey() {
   sessionSet(null);
 }
 
+export function hasOpenRouterKey() {
+  return Boolean(getActiveApiKey());
+}
+
 export function detectKeyShape(key: string): ProviderDetection {
   const value = key.trim();
   if (/^sk-or-/i.test(value)) return { provider: "openrouter", label: "OpenRouter", detail: "OpenRouter key detected. This unlocks the OpenRouter catalog, including models from many providers." };
@@ -67,13 +71,10 @@ function modelKeys(model: PuterModel): string[] {
 }
 
 export function filterOpenRouterToPuterModels(openRouterModels: OpenRouterModel[], puterModels: PuterModel[]): OpenRouterModel[] {
-  // Important: the OpenRouter key authenticates OpenRouter. Puter is used only
-  // as the source of truth for which model IDs are exposed by Puter. We never
-  // pretend that an OpenRouter key is a Puter credential.
+  // Optional overlap helper only. OpenRouter auth never becomes Puter auth.
   const puterKeys = new Set(puterModels.flatMap(modelKeys));
   return openRouterModels.filter((model) => {
     const id = model.id.trim().toLowerCase();
-    // Strip optional ~ and provider prefix (e.g. "openai/gpt-4" -> "gpt-4")
     const bare = id.replace(/^~?[^/]+\//, "");
     return puterKeys.has(id) || puterKeys.has(bare) || puterKeys.has(model.id.split("/").pop()?.toLowerCase() ?? "");
   });
@@ -89,15 +90,8 @@ export async function verifyOpenRouterKey(key: string): Promise<{ ok: true; mode
   }
   const data = await response.json() as { data?: OpenRouterModel[] };
   const openRouterModels = Array.isArray(data.data) ? data.data : [];
-  try {
-    const puterModels = await fetchPuterModelCatalog();
-    return { ok: true, models: filterOpenRouterToPuterModels(openRouterModels, puterModels) };
-  } catch (error) {
-    return {
-      ok: false,
-      error: `OpenRouter key ผ่าน แต่โหลดรายการโมเดล Puter ไม่สำเร็จ: ${error instanceof Error ? error.message : "unknown error"}`,
-    };
-  }
+  // OpenRouter key authenticates OpenRouter only. Puter catalog is optional.
+  return { ok: true, models: openRouterModels.filter((m) => !/image|audio|video|embedding|rerank|transcription/i.test(m.id)) };
 }
 
 export async function connectApiKey(key: string): Promise<{ detection: ProviderDetection; models: OpenRouterModel[] }> {
@@ -110,20 +104,8 @@ export async function connectApiKey(key: string): Promise<{ detection: ProviderD
   }
   const verified = await verifyOpenRouterKey(value);
   if (!verified.ok) throw new Error(verified.error);
-
-  // OpenRouter authenticates the request. Puter supplies the model catalog.
-  // Only models exposed by both services are offered in this gateway mode.
-  let puterModels: PuterModel[] = [];
-  try {
-    puterModels = await fetchPuterModelCatalog();
-  } catch (error) {
-    throw new Error(
-      `เชื่อม OpenRouter ได้ แต่โหลดรายการโมเดล Puter ไม่สำเร็จ: ${error instanceof Error ? error.message : "unknown error"}`,
-    );
-  }
-  const puterCompatibleModels = filterOpenRouterToPuterModels(verified.models, puterModels);
-  if (!puterCompatibleModels.length) {
-    throw new Error("OpenRouter key ใช้งานได้ แต่ไม่พบโมเดลที่มีอยู่ทั้งใน Puter และ OpenRouter จึงยังไม่เปิดการเรียกโมเดล Puter ผ่าน gateway");
+  if (!verified.models.length) {
+    throw new Error("OpenRouter key ใช้งานได้ แต่ยังไม่มีโมเดลข้อความที่เรียกได้");
   }
 
   memoryKey = value;

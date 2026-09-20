@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Archive, Bot, Code2, FileText, Globe, Loader2, Paperclip, Pin, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
+import { Archive, FileText, Loader2, Paperclip, Pin, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
@@ -10,10 +10,10 @@ import { ProviderKeyBar } from "@/components/provider-key-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { runFleet } from "@/lib/ai";
-import { AGENTS, MCP_SERVERS, modelById } from "@/lib/catalog";
+import { AGENTS, modelById } from "@/lib/catalog";
+import { getActiveApiKey } from "@/lib/provider-keys";
 import { usePuter } from "@/lib/puter-context";
 import { useFleet } from "@/lib/store";
 
@@ -50,12 +50,12 @@ function ChatPage() {
   const appendMessage = useFleet((s) => s.appendMessage);
   const patchMessage = useFleet((s) => s.patchMessage);
   const patchActivity = useFleet((s) => s.patchActivity);
-  const updateTools = useFleet((s) => s.updateTools);
-  const toggleMcp = useFleet((s) => s.toggleMcp);
   const modelId = useFleet((s) => s.modelId);
   const memory = useFleet((s) => s.memory);
   const learnMemory = useFleet((s) => s.learnMemory);
   const { signedIn } = usePuter();
+  const openRouterConnected = Boolean(getActiveApiKey());
+  const canChat = signedIn || openRouterConnected;
 
   const thread = threads.find((t) => t.id === activeThreadId) ?? threads[0];
   const [draft, setDraft] = useState("");
@@ -122,10 +122,10 @@ function ChatPage() {
         const remaining = 60000 - totalChars;
         if (remaining <= 0) break;
         const clipped = content.slice(0, remaining);
-        files.push(`\\n### ${name}\\n${clipped}`);
+        files.push(`\n### ${name}\n${clipped}`);
         totalChars += clipped.length;
       }
-      if (files.length) return `ZIP extracted text files (${files.length}):${files.join("")}${totalChars >= 60000 ? "\\n[ZIP content truncated at 60,000 characters]" : ""}`;
+      if (files.length) return `ZIP extracted text files (${files.length}):${files.join("")}${totalChars >= 60000 ? "\n[ZIP content truncated at 60,000 characters]" : ""}`;
       return "ZIP attached, but no readable text/code entries could be extracted in this browser.";
     }
     if (file.type.startsWith("text/") || /\.(md|txt|json|js|jsx|ts|tsx|css|html|xml|yml|yaml|csv|py|go|rs|java|sql|env)$/i.test(file.name)) {
@@ -141,19 +141,19 @@ function ChatPage() {
 
   async function send() {
     if (!thread || (!draft.trim() && attachments.length === 0) || busy) return;
-    if (!signedIn) {
-      toast.error("กด Sign in with Puter ด้านบนก่อน แล้วค่อยส่งข้อความ");
+    if (!canChat) {
+      toast.error("ใส่ OpenRouter API key (sk-or-...) หรือ Sign in with Puter ก่อน แล้วค่อยส่งข้อความ");
       return;
     }
     const attachmentDetails = attachments.length
       ? await Promise.all(
           attachments.map(async (f) =>
-            `- ${f.name} (${f.type || "unknown"}, ${Math.ceil(f.size / 1024)} KB)\\n  ${await describeAttachment(f)}`,
+            `- ${f.name} (${f.type || "unknown"}, ${Math.ceil(f.size / 1024)} KB)\n  ${await describeAttachment(f)}`,
           ),
         )
       : [];
     const attachmentContext = attachmentDetails.length
-      ? `\\n\\nAttached files:\\n${attachmentDetails.join("\\n")}`
+      ? `\n\nAttached files:\n${attachmentDetails.join("\n")}`
       : "";
     const text = normalizeToolPrompt((draft.trim() || "Analyze the attached files") + attachmentContext, thread.mcp);
     setDraft("");
@@ -207,19 +207,19 @@ function ChatPage() {
         if (res.activity) patchActivity(thread.id, assistantId, res.activity);
         toast.error(res.error);
         patchMessage(thread.id, assistantId, `Could not complete that turn.\n\n${res.error}`);
-        learnMemory(`Task: ${text.replace(/Attached files:[\\s\\S]*/i, "").trim().slice(0, 700)} | Result: failed | Reason: ${res.error.slice(0, 500)}`);
+        learnMemory(`Task: ${text.replace(/Attached files:[\s\S]*/i, "").trim().slice(0, 700)} | Result: failed | Reason: ${res.error.slice(0, 500)}`);
         return;
       }
       if (res.activity) patchActivity(thread.id, assistantId, res.activity);
       patchMessage(thread.id, assistantId, res.text);
       const learnedActivity = (res.activity ?? []).slice(-6).join(" → ");
       const learnedResult = res.text.replace(/\s+/g, " ").slice(0, 600);
-      learnMemory(`Task: ${text.replace(/Attached files:[\\s\\S]*/i, "").trim().slice(0, 700)} | Result: ${learnedResult} | Trace: ${learnedActivity}`);
+      learnMemory(`Task: ${text.replace(/Attached files:[\s\S]*/i, "").trim().slice(0, 700)} | Result: ${learnedResult} | Trace: ${learnedActivity}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Chat failed");
       const errorText = err instanceof Error ? err.message : "Chat failed";
       patchMessage(thread.id, assistantId, errorText);
-      learnMemory(`Task: ${text.replace(/Attached files:[\\s\\S]*/i, "").trim().slice(0, 700)} | Result: failed | Reason: ${errorText.slice(0, 500)}`);
+      learnMemory(`Task: ${text.replace(/Attached files:[\s\S]*/i, "").trim().slice(0, 700)} | Result: failed | Reason: ${errorText.slice(0, 500)}`);
     } finally {
       setBusy(false);
       requestAnimationFrame(() => {
@@ -328,7 +328,11 @@ function ChatPage() {
               {busy && (
                 <div className="flex items-center gap-2 text-sm text-muted">
                   <Loader2 className="size-4 animate-spin text-primary" />
-                  {thread.tools.agents ? "Agents running…" : "Streaming from Puter…"}
+                  {openRouterConnected && !signedIn
+                    ? "Streaming from OpenRouter…"
+                    : thread.tools.agents
+                      ? "Agents running…"
+                      : "Streaming…"}
                 </div>
               )}
             </div>
@@ -352,7 +356,7 @@ function ChatPage() {
                       void send();
                     }
                   }}
-                  placeholder={signedIn ? "Ask Copilot…  Shift+Enter for a newline" : "Sign in with Puter, then ask…"}
+                  placeholder={canChat ? "Ask Copilot…  Shift+Enter for a newline" : "ใส่ OpenRouter key หรือ Sign in with Puter ก่อน…"}
                   className="min-h-12 border-0 bg-transparent shadow-none focus-visible:shadow-none"
                   rows={2}
                 />
@@ -362,32 +366,12 @@ function ChatPage() {
               </div>
               <p className="mt-2 flex items-center gap-1 text-xs text-subtle">
                 <Sparkles className="size-3" />
-                Enter send · Shift+Enter newline · Free via Puter
+                Enter send · Shift+Enter newline · OpenRouter key หรือ Puter login
               </p>
             </div>
           </div>
         </div>
       </div>
     </AppShell>
-  );
-}
-
-function ToolToggle({
-  icon: Icon,
-  label,
-  on,
-  onChange,
-}: {
-  icon: typeof Globe;
-  label: string;
-  on: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <label className="flex items-center gap-1.5 text-xs text-muted">
-      <Icon className="size-3.5 text-primary" />
-      {label}
-      <Switch checked={on} onCheckedChange={onChange} />
-    </label>
   );
 }
