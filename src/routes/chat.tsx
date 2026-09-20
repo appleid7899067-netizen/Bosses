@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Bot, Code2, FileText, Globe, Loader2, Pin, Plus, Send, Sparkles, Trash2 } from "lucide-react";
+import { Archive, Bot, Code2, FileText, Globe, Loader2, Paperclip, Pin, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
@@ -57,6 +57,9 @@ function ChatPage() {
   const thread = threads.find((t) => t.id === activeThreadId) ?? threads[0];
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<Array<{ file: File; url?: string }>>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
   const sorted = useMemo(
@@ -69,8 +72,19 @@ function ChatPage() {
     [threads],
   );
 
+  function addFiles(files: File[]) {
+    const next = files.slice(0, 8);
+    setAttachments((current) => [...current, ...next].slice(0, 8));
+    setPreviews((current) => [...current, ...next.map((file) => ({ file, url: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined }))].slice(0, 8));
+  }
+
+  function removeAttachment(index: number) {
+    setPreviews((current) => { const item = current[index]; if (item?.url) URL.revokeObjectURL(item.url); return current.filter((_, i) => i !== index); });
+    setAttachments((current) => current.filter((_, i) => i !== index));
+  }
+
   async function send() {
-    if (!thread || !draft.trim() || busy) return;
+    if (!thread || (!draft.trim() && attachments.length === 0) || busy) return;
     if (!signedIn) {
       try {
         await signIn();
@@ -79,8 +93,11 @@ function ChatPage() {
         return;
       }
     }
-    const text = normalizeToolPrompt(draft.trim(), thread.mcp);
+    const attachmentContext = attachments.length ? `\n\nAttached files:\n${attachments.map((f) => `- ${f.name} (${f.type || "unknown"}, ${Math.ceil(f.size / 1024)} KB)`).join("\n")}` : "";
+    const text = normalizeToolPrompt((draft.trim() || "Analyze the attached files") + attachmentContext, thread.mcp);
     setDraft("");
+    setAttachments([]);
+    setPreviews([]);
     appendMessage(thread.id, { role: "user", content: text });
     setBusy(true);
     const activity: string[] = [];
@@ -216,6 +233,7 @@ function ChatPage() {
                     {m.role === "user" ? "You" : "Copilot"}
                     {m.model ? ` · ${m.model}` : ""}
                   </p>
+                  {m.attachments && m.attachments.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{m.attachments.map((file) => <Badge key={`${m.id}-${file.name}`}>📎 {file.name}</Badge>)}</div>}
                   {m.activity && m.activity.length > 0 && (
                     <div className="mb-2 flex flex-wrap gap-1">
                       {m.activity.map((a) => (
@@ -294,7 +312,10 @@ function ChatPage() {
                   </button>
                 ))}
               </div>
+              {previews.length > 0 && <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{previews.map((item, index) => <div key={`${item.file.name}-${index}`} className="relative overflow-hidden rounded-lg border border-border bg-elevated p-2">{item.url ? <img src={item.url} alt={item.file.name} className="h-24 w-full rounded object-cover" /> : <div className="flex h-24 flex-col items-center justify-center gap-1 text-muted">{item.file.name.toLowerCase().endsWith(".zip") ? <Archive className="size-7" /> : <FileText className="size-7" />}<span className="max-w-full truncate text-xs">{item.file.name}</span></div>}<button type="button" onClick={() => removeAttachment(index)} className="absolute right-1 top-1 rounded-full bg-bg/90 p-1" aria-label={`Remove ${item.file.name}`}><X className="size-3" /></button></div>)}</div>}
               <div className="flex items-end gap-2 rounded-lg bg-elevated p-2 shadow-[var(--shadow-border)]">
+                <input ref={fileInputRef} type="file" multiple accept="image/*,.zip,.pdf,.txt,.md,.json,.js,.ts,.tsx,.jsx,.py,.go,.rs,.java,.css,.html" className="hidden" onChange={(e) => { if (e.target.files) addFiles(Array.from(e.target.files)); e.currentTarget.value = ""; }} />
+                <Button size="icon" variant="ghost" onClick={() => fileInputRef.current?.click()} aria-label="Attach files"><Paperclip className="size-4" /></Button>
                 <Textarea
                   value={draft}
                   onChange={(e) => setDraft(e.target.value)}
