@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { connectApiKey, clearActiveApiKey, detectKeyShape, getActiveApiKey } from "@/lib/provider-keys";
+import { connectApiKey, clearActiveApiKey, detectKeyShape, getActiveApiKey, isPuterCatalogModel } from "@/lib/provider-keys";
 
 export function ProviderKeyBar() {
   const [value, setValue] = useState("");
@@ -21,9 +21,9 @@ export function ProviderKeyBar() {
         throw new Error(detection.detail);
       }
       const result = await connectApiKey(key);
-      setStatus(`${result.detection.label} · ${result.models.length} models`);
+      const puterCatalogMatches = result.models.filter((model) => isPuterCatalogModel(model.id)).length;\n      setStatus(`${result.detection.label} · ${result.models.length} models · Puter catalog ${puterCatalogMatches}`);
       setValue("");
-      toast.success(`OpenRouter พร้อมใช้งาน — แชทได้โดยไม่ต้องล็อกอิน Puter`);
+      toast.success(`OpenRouter พร้อมใช้งาน · พบโมเดลที่มีใน Puter ${puterCatalogMatches} รายการ`);
     } catch (error) {
       setStatus("");
       toast.error(error instanceof Error ? error.message : "ตรวจคีย์ไม่สำเร็จ");
