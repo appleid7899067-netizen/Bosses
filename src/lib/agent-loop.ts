@@ -22,6 +22,21 @@ function isVerificationToolCall(name: string): boolean {
   return /(^|_)(test|verify|verification|build|ci|check|status|health|deploy|sandbox|web|http)(_|$)/i.test(name);
 }
 
+function diagnoseToolFailure(item: ToolExecutionResult): string {
+  const raw = String(item.error ?? item.result ?? "").slice(0, 1200);
+  const text = raw.toLowerCase();
+  if (/502|bad gateway/.test(text)) return `Root cause hint: upstream/deployment gateway failure (HTTP 502) from ${item.name}.`;
+  if (/503|service unavailable/.test(text)) return `Root cause hint: service unavailable or unhealthy deployment from ${item.name}.`;
+  if (/timeout|timed out|etimedout|econnreset|socket hang up/.test(text)) return `Root cause hint: network/service timeout from ${item.name}.`;
+  if (/401|unauthorized|authentication|token|api key/.test(text)) return `Root cause hint: authentication/credential failure from ${item.name}.`;
+  if (/403|forbidden|permission|access denied/.test(text)) return `Root cause hint: permission/access failure from ${item.name}.`;
+  if (/404|not found|module not found/.test(text)) return `Root cause hint: missing route/resource/module from ${item.name}.`;
+  if (/eaddrinuse|address already in use|port/.test(text)) return `Root cause hint: port/process conflict from ${item.name}.`;
+  if (/typescript|ts\\d+|type error/.test(text)) return `Root cause hint: TypeScript/type-check failure from ${item.name}.`;
+  if (/syntaxerror|parse error|unexpected token/.test(text)) return `Root cause hint: syntax/parse failure from ${item.name}.`;
+  return `Root cause hint: inspect the concrete error from ${item.name}; do not guess.`;
+}
+
 function verificationPassed(results: ToolExecutionResult[]): { passed: boolean; evidence: string } {
   const checks = results.filter((item) => isVerificationToolCall(item.name));
   if (!checks.length) return { passed: false, evidence: "ยังไม่มีผลลัพธ์จาก verification tool" };
@@ -128,7 +143,7 @@ Verification gate: external mutation is expected. You MUST use an actual verific
     if (verificationResults.some((item) => !item.ok)) {
       steps.push({ phase: "refine", detail: `Verification ไม่ผ่าน: ${verificationResults.filter((item) => !item.ok).map((item) => `${item.name}: ${String(item.error ?? "ไม่ผ่าน").slice(0, 180)}`).join(" | ")}` });
     }
-    const failedTools = failedResults.map((item) => `${item.name} (failures: ${toolFailureCounts.get(item.name) ?? 1}): ${String(item.error ?? "unknown error").slice(0, 800)}`);
+    const failedTools = failedResults.map((item) => `${item.name} (failures: ${toolFailureCounts.get(item.name) ?? 1}): ${String(item.error ?? "unknown error").slice(0, 800)}`);\n    const diagnosisHints = failedResults.map(diagnoseToolFailure);
     const observedResults = result.toolResults.map((item) => {
       const payload = item.ok ? JSON.stringify(item.result ?? "").slice(0, 1600) : `ERROR: ${String(item.error ?? "tool failed").slice(0, 800)}`;
       return `${item.name}: ${payload}`;
@@ -161,7 +176,7 @@ ${observedResults.length ? observedResults.join("\n") : "ไม่มี"}
 
 Actual failed tools from this round:
 ${failedTools.length ? failedTools.join("\n") : "ไม่มี"}
-${verificationIssue}
+${failedTools.length ? failedTools.join("\n") : "ไม่มี"}\n\nDeterministic diagnosis hints:\n${diagnosisHints.length ? diagnosisHints.join("\n") : "ไม่มี"}\n${verificationIssue}
 
 Continue from the actual observations above. For every failed tool, diagnose the concrete error, make the smallest safe repair when appropriate, then rerun the relevant tool. If verification fails, diagnose and repair the root cause. Do not stop merely because a file was changed. Do not claim success until verification evidence exists.`;
   }
