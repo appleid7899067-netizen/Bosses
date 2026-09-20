@@ -150,7 +150,7 @@ export async function currentPuterUser(): Promise<PuterUser | null> {
   }
 }
 
-export async function chatWithPuter(opts: { messages: ChatTurn[]; model: string; onDelta?: (full: string) => void }): Promise<ChatResult> {
+export async function chatWithPuter(opts: { messages: ChatTurn[]; model: string; onDelta?: (full: string) => void; provider?: string }): Promise<ChatResult> {
   let puter: PuterAPI;
   try { puter = await ensurePuter(); } catch (err) { return { ok: false, error: friendlyError(err) }; }
   if (!puter.auth.isSignedIn()) return { ok: false, error: "Puter ยังไม่ได้เข้าสู่ระบบ กรุณากด Sign in with Puter ก่อน แล้วจึงลองส่งอีกครั้ง" };
@@ -164,7 +164,7 @@ export async function chatWithPuter(opts: { messages: ChatTurn[]; model: string;
   }
   const payload = withCredentialPolicy(opts.messages).map((m) => ({ role: m.role, content: m.content }));
   const run = async (stream: boolean) => {
-    const resp = await puter.ai.chat(payload, { model: opts.model, stream });
+    const resp = await puter.ai.chat(payload, { model: opts.model, stream, ...(opts.provider ? { provider: opts.provider } : {}) });
     if (stream && resp && typeof resp === "object" && Symbol.asyncIterator in (resp as object)) {
       let full = "";
       for await (const part of resp as AsyncIterable<PuterChatPart | string>) { const piece = typeof part === "string" ? part : extractText(part); if (!piece) continue; full += piece; opts.onDelta?.(full); }
@@ -178,4 +178,20 @@ export async function chatWithPuter(opts: { messages: ChatTurn[]; model: string;
     try { const text = await run(false); if (!text.trim()) return { ok: false, error: friendlyError(err) }; return { ok: true, text, model: opts.model }; }
     catch (err2) { return { ok: false, error: friendlyError(err2) }; }
   }
+}
+
+
+/**
+ * Route a model through Puter's OpenRouter provider.
+ * Puter documents this as a supported provider path, so the Boss can use
+ * OpenRouter models without putting an OpenRouter API key in browser code.
+ */
+export async function chatWithOpenRouter(opts: {
+  messages: ChatTurn[];
+  model: string;
+  onDelta?: (full: string) => void;
+}): Promise<ChatResult> {
+  const model = opts.model.replace(/^openrouter:/i, "").trim();
+  if (!model) return { ok: false, error: "OpenRouter model is required." };
+  return chatWithPuter({ ...opts, model, provider: "openrouter" });
 }
