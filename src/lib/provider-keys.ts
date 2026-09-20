@@ -87,7 +87,16 @@ export async function verifyOpenRouterKey(key: string): Promise<{ ok: true; mode
     return { ok: false, error: `OpenRouter rejected the key (${response.status})${body ? `: ${body.slice(0, 180)}` : ""}` };
   }
   const data = await response.json() as { data?: OpenRouterModel[] };
-  return { ok: true, models: Array.isArray(data.data) ? data.data : [] };
+  const openRouterModels = Array.isArray(data.data) ? data.data : [];
+  try {
+    const puterModels = await fetchPuterModelCatalog();
+    return { ok: true, models: filterOpenRouterToPuterModels(openRouterModels, puterModels) };
+  } catch (error) {
+    return {
+      ok: false,
+      error: `OpenRouter key ผ่าน แต่โหลดรายการโมเดล Puter ไม่สำเร็จ: ${error instanceof Error ? error.message : "unknown error"}`,
+    };
+  }
 }
 
 export async function connectApiKey(key: string): Promise<{ detection: ProviderDetection; models: OpenRouterModel[] }> {
