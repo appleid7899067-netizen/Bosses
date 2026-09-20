@@ -129,6 +129,10 @@ Verification gate: external mutation is expected. You MUST use an actual verific
       steps.push({ phase: "refine", detail: `Verification ไม่ผ่าน: ${verificationResults.filter((item) => !item.ok).map((item) => `${item.name}: ${String(item.error ?? "ไม่ผ่าน").slice(0, 180)}`).join(" | ")}` });
     }
     const failedTools = failedResults.map((item) => `${item.name} (failures: ${toolFailureCounts.get(item.name) ?? 1}): ${String(item.error ?? "unknown error").slice(0, 800)}`);
+    const observedResults = result.toolResults.map((item) => {
+      const payload = item.ok ? JSON.stringify(item.result ?? "").slice(0, 1600) : `ERROR: ${String(item.error ?? "tool failed").slice(0, 800)}`;
+      return `${item.name}: ${payload}`;
+    });
     const verificationIssue = verificationFailed ? `Verification evidence failed: ${verification.evidence}` : "";
     if (failedResults.length) {
       failedToolStreak += 1;
@@ -151,6 +155,9 @@ Repair context: ${repairedToolNames.size ? `เครื่องมือที
 
 Previous agent output:
 ${last.slice(-12000)}
+
+Actual tool observations from this round:
+${observedResults.length ? observedResults.join("\n") : "ไม่มี"}
 
 Actual failed tools from this round:
 ${failedTools.length ? failedTools.join("\n") : "ไม่มี"}
