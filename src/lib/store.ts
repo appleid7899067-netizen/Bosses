@@ -10,6 +10,7 @@ export type ChatMessage = {
   createdAt: number;
   model?: string;
   activity?: string[];
+  attachments?: Array<{ name: string; size: number; type: string }>;
 };
 
 export type ChatThread = {
@@ -194,6 +195,7 @@ export const useFleet = create<FleetState>()(
               content: msg.content,
               model: msg.model,
               activity: msg.activity,
+              attachments: msg.attachments,
             };
             const title =
               t.title === "New chat" && msg.role === "user" ? msg.content.slice(0, 42) || t.title : t.title;
