@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { MarkdownOutput } from "@/components/markdown-output";
+import { SandboxPreview } from "@/components/sandbox-preview";
 import { ModelPicker } from "@/components/pickers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
