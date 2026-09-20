@@ -73,7 +73,8 @@ export function filterOpenRouterToPuterModels(openRouterModels: OpenRouterModel[
   const puterKeys = new Set(puterModels.flatMap(modelKeys));
   return openRouterModels.filter((model) => {
     const id = model.id.trim().toLowerCase();
-    const bare = id.replace(/^~?[^/]+\\//, "");
+    // Strip optional ~ and provider prefix (e.g. "openai/gpt-4" -> "gpt-4")
+    const bare = id.replace(/^~?[^/]+\//, "");
     return puterKeys.has(id) || puterKeys.has(bare) || puterKeys.has(model.id.split("/").pop()?.toLowerCase() ?? "");
   });
 }
