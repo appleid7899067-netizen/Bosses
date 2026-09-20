@@ -52,6 +52,7 @@ function ChatPage() {
   const toggleMcp = useFleet((s) => s.toggleMcp);
   const modelId = useFleet((s) => s.modelId);
   const memory = useFleet((s) => s.memory);
+  const learnMemory = useFleet((s) => s.learnMemory);
   const { signedIn, signIn } = usePuter();
 
   const thread = threads.find((t) => t.id === activeThreadId) ?? threads[0];
@@ -206,17 +207,19 @@ function ChatPage() {
         if (res.activity) patchActivity(thread.id, assistantId, res.activity);
         toast.error(res.error);
         patchMessage(thread.id, assistantId, `Could not complete that turn.\n\n${res.error}`);
+        learnMemory(`Task: ${text.replace(/Attached files:[\\s\\S]*/i, "").trim().slice(0, 700)} | Result: failed | Reason: ${res.error.slice(0, 500)}`);
         return;
       }
       if (res.activity) patchActivity(thread.id, assistantId, res.activity);
       patchMessage(thread.id, assistantId, res.text);
+      const learnedActivity = (res.activity ?? []).slice(-6).join(" → ");
+      const learnedResult = res.text.replace(/\s+/g, " ").slice(0, 600);
+      learnMemory(`Task: ${text.replace(/Attached files:[\\s\\S]*/i, "").trim().slice(0, 700)} | Result: ${learnedResult} | Trace: ${learnedActivity}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Chat failed");
-      patchMessage(
-        thread.id,
-        assistantId,
-        err instanceof Error ? err.message : "Chat failed",
-      );
+      const errorText = err instanceof Error ? err.message : "Chat failed";
+      patchMessage(thread.id, assistantId, errorText);
+      learnMemory(`Task: ${text.replace(/Attached files:[\\s\\S]*/i, "").trim().slice(0, 700)} | Result: failed | Reason: ${errorText.slice(0, 500)}`);
     } finally {
       setBusy(false);
       requestAnimationFrame(() => {
