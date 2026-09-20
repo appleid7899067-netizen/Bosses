@@ -143,7 +143,8 @@ Verification gate: external mutation is expected. You MUST use an actual verific
     if (verificationResults.some((item) => !item.ok)) {
       steps.push({ phase: "refine", detail: `Verification ไม่ผ่าน: ${verificationResults.filter((item) => !item.ok).map((item) => `${item.name}: ${String(item.error ?? "ไม่ผ่าน").slice(0, 180)}`).join(" | ")}` });
     }
-    const failedTools = failedResults.map((item) => `${item.name} (failures: ${toolFailureCounts.get(item.name) ?? 1}): ${String(item.error ?? "unknown error").slice(0, 800)}`);\n    const diagnosisHints = failedResults.map(diagnoseToolFailure);
+    const failedTools = failedResults.map((item) => `${item.name} (failures: ${toolFailureCounts.get(item.name) ?? 1}): ${String(item.error ?? "unknown error").slice(0, 800)}`);
+    const diagnosisHints = failedResults.map(diagnoseToolFailure);
     const observedResults = result.toolResults.map((item) => {
       const payload = item.ok ? JSON.stringify(item.result ?? "").slice(0, 1600) : `ERROR: ${String(item.error ?? "tool failed").slice(0, 800)}`;
       return `${item.name}: ${payload}`;
