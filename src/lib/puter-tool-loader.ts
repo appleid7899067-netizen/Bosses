@@ -306,7 +306,7 @@ export async function callWithFallback(prompt: string, tools: CodingFleetTool[],
         const shouldForceHealthCheck = /deploy|deployment|ดีพลอย|health|502|503|website|เว็บล่ม/i.test(prompt);
         const healthTool = availableTools.find((candidate) => toolName(candidate) === "web_check");
         if (shouldForceHealthCheck && healthTool && !toolResults.some((item) => item.name === "web_check")) {
-          const target = toolResults.filter((item) => item.ok).map((item) => extractPublicHttpsUrl(item.result)).find(Boolean);
+          const target = toolResults.filter((item) => item.ok).map((item) => extractPublicHttpsUrl(item.result)).find(Boolean) ?? extractPublicHttpsUrl(prompt);
           if (target) {
             try {
               const output = await executeTool(healthTool, { url: target });
