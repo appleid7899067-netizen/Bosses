@@ -119,16 +119,16 @@ export async function signInWithPuter(forceReauth = false): Promise<PuterUser | 
         const user = await puter.auth.getUser();
         if (user.requires_phone_verification) return null;
         return user;
-      } catch { return { username: "puter-user" }; }
+      } catch { return null; }
     }
-    const result = await puter.auth.signIn(forceReauth ? { request_auth: true } : undefined);
+    await puter.auth.signIn(forceReauth ? { request_auth: true } : undefined);
     if (!puter.auth.isSignedIn()) return null;
     try {
       const user = await puter.auth.getUser();
       if (user.requires_phone_verification) return null;
       return user;
     } catch {
-      return result ? { username: "puter-user" } : null;
+      return null;
     }
   })();
   try {
