@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { MarkdownOutput } from "@/components/markdown-output";
-import { SandboxPreview } from "@/components/sandbox-preview";
 import { ModelPicker } from "@/components/pickers";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -71,7 +70,6 @@ function ChatPage() {
   const [busy, setBusy] = useState(false);
   const [attachments, setAttachments] = useState<File[]>([]);
   const [previews, setPreviews] = useState<Array<{ file: File; url?: string }>>([]);
-  const [sandboxFiles, setSandboxFiles] = useState<File[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -166,7 +164,6 @@ function ChatPage() {
       : "";
     const text = normalizeToolPrompt((draft.trim() || "Analyze the attached files") + attachmentContext, thread.mcp);
     setDraft("");
-    setSandboxFiles(attachments);
     setAttachments([]);
     setPreviews([]);
     appendMessage(thread.id, { role: "user", content: text, attachments: attachments.map((file) => ({ name: file.name, size: file.size, type: file.type })) });
@@ -241,7 +238,7 @@ function ChatPage() {
 
   return (
     <AppShell>
-      <div className="mx-auto flex h-[calc(100dvh-3.5rem)] max-w-6xl">
+      <div className="flex h-[calc(100dvh-3.5rem)] w-full max-w-none">
         <aside className="hidden w-64 shrink-0 flex-col border-r border-border md:flex">
           <div className="flex items-center justify-between p-3">
             <p className="text-xs font-medium uppercase tracking-wider text-subtle">Chats</p>
@@ -312,7 +309,6 @@ function ChatPage() {
           </div>
 
           <div className="border-t border-border px-3 py-3">
-            {sandboxFiles.length > 0 && <div className="mx-auto max-w-2xl pb-3"><SandboxPreview files={sandboxFiles} /></div>}
             <div className="mx-auto max-w-2xl">
               {previews.length > 0 && <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{previews.map((item, index) => <div key={`${item.file.name}-${index}`} className="relative overflow-hidden rounded-lg border border-border bg-elevated p-2">{item.url ? <img src={item.url} alt={item.file.name} className="h-24 w-full rounded object-cover" /> : <div className="flex h-24 flex-col items-center justify-center gap-1 text-muted">{item.file.name.toLowerCase().endsWith(".zip") ? <Archive className="size-7" /> : <FileText className="size-7" />}<span className="max-w-full truncate text-xs">{item.file.name}</span></div>}<button type="button" onClick={() => removeAttachment(index)} className="absolute right-1 top-1 rounded-full bg-bg/90 p-1" aria-label={`Remove ${item.file.name}`}><X className="size-3" /></button></div>)}</div>}
               <div className="flex items-end gap-2 rounded-lg bg-elevated p-2 shadow-[var(--shadow-border)]">
