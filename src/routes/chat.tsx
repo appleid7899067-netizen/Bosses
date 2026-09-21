@@ -1,12 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Archive, FileText, Loader2, Paperclip, Pin, Plus, Send, Sparkles, Trash2, X } from "lucide-react";
+import { Archive, FileText, Loader2, Paperclip, Pin, Plus, Send, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { MarkdownOutput } from "@/components/markdown-output";
 import { SandboxPreview } from "@/components/sandbox-preview";
 import { ModelPicker } from "@/components/pickers";
-import { ProviderKeyBar } from "@/components/provider-key-bar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -277,7 +276,7 @@ function ChatPage() {
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b border-border px-3 py-2">
             <ModelPicker compact />
-            <ProviderKeyBar />
+            <div className="ml-2 flex items-center gap-1.5 text-xs text-subtle"><span className={`size-1.5 rounded-full ${canChat ? "bg-emerald-500" : "bg-muted"}`} />{canChat ? "พร้อมใช้งาน" : "รอการเชื่อมต่อ"}</div>
             <div className="ml-auto flex items-center gap-1 md:hidden">
               <Button size="icon-sm" variant="ghost" onClick={() => newThread()} aria-label="New chat">
                 <Plus className="size-4" />
@@ -290,12 +289,10 @@ function ChatPage() {
               {thread.messages.map((m) => (
                 <div key={m.id} className={m.role === "user" ? "ml-8" : "mr-4"}>
                   <p className="mb-1 text-xs uppercase tracking-wider text-subtle">
-                    {m.role === "user" ? "You" : "Copilot"}{m.model ? ` · ${m.model}` : ""}
+                    {m.role === "user" ? "คุณ" : "Boss"}
                   </p>
                   {m.attachments && m.attachments.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{m.attachments.map((file) => <Badge key={`${m.id}-${file.name}`}>📎 {file.name}</Badge>)}</div>}
-                  {m.activity && m.activity.length > 0 && (
-                    <div className="mb-2 flex flex-wrap gap-1">{m.activity.map((a) => <Badge key={a}>{a}</Badge>)}</div>
-                  )}
+                  {m.role === "assistant" && m.activity && m.activity.length > 0 && <div className="mb-2 text-xs text-subtle">• {m.activity.slice(-1)[0]}</div>}
                   <div className={m.role === "user" ? "rounded-lg bg-elevated px-3 py-2 text-sm shadow-[var(--shadow-border)]" : ""}>
                     {m.role === "assistant" ? (
                       m.content ? <MarkdownOutput text={m.content} /> : <span className="text-sm text-muted">Thinking…</span>
@@ -315,9 +312,7 @@ function ChatPage() {
           </div>
 
           <div className="border-t border-border px-3 py-3">
-            <div className="mx-auto max-w-2xl pb-3">
-              <SandboxPreview files={sandboxFiles} />
-            </div>
+            {sandboxFiles.length > 0 && <div className="mx-auto max-w-2xl pb-3"><SandboxPreview files={sandboxFiles} /></div>}
             <div className="mx-auto max-w-2xl">
               {previews.length > 0 && <div className="mb-2 grid grid-cols-2 gap-2 sm:grid-cols-4">{previews.map((item, index) => <div key={`${item.file.name}-${index}`} className="relative overflow-hidden rounded-lg border border-border bg-elevated p-2">{item.url ? <img src={item.url} alt={item.file.name} className="h-24 w-full rounded object-cover" /> : <div className="flex h-24 flex-col items-center justify-center gap-1 text-muted">{item.file.name.toLowerCase().endsWith(".zip") ? <Archive className="size-7" /> : <FileText className="size-7" />}<span className="max-w-full truncate text-xs">{item.file.name}</span></div>}<button type="button" onClick={() => removeAttachment(index)} className="absolute right-1 top-1 rounded-full bg-bg/90 p-1" aria-label={`Remove ${item.file.name}`}><X className="size-3" /></button></div>)}</div>}
               <div className="flex items-end gap-2 rounded-lg bg-elevated p-2 shadow-[var(--shadow-border)]">
@@ -340,12 +335,7 @@ function ChatPage() {
                   {busy ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 </Button>
               </div>
-              <p className="mt-2 flex items-center gap-1 text-xs text-subtle">
-                <Sparkles className="size-3" />
-                {canChat
-                  ? (openRouterConnected ? "พร้อมแชทผ่าน OpenRouter (ไม่ต้อง Puter)" : "พร้อมแชทผ่าน Puter")
-                  : "ใส่ OpenRouter key หรือ Sign in with Puter"}
-              </p>
+              <p className="mt-2 text-center text-[11px] text-subtle">Boss เลือกเครื่องมือและตรวจผลให้เอง</p>
             </div>
           </div>
         </div>
