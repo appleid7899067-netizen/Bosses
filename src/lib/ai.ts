@@ -11,7 +11,7 @@ import {
 } from "@/lib/github.functions";
 import { chatWithPuter, type ChatResult, type ChatTurn } from "@/lib/puter";
 import { callWithFallback, loadCodingFleetTools } from "@/lib/puter-tool-loader";
-import { callOpenRouter, chooseOpenRouterModel, getActiveApiKey, verifyOpenRouterKey } from "@/lib/provider-keys";
+import { callOpenRouter, chooseOpenRouterModel, getActiveApiKey, verifyOpenRouterKeyForPuterCatalog } from "@/lib/provider-keys";
 
 export type FleetRequest = {
   mode: keyof typeof SYSTEM_PROMPTS | string;
@@ -276,7 +276,7 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
     try {
       let models: Awaited<ReturnType<typeof verifyOpenRouterKey>> extends infer R ? R extends { ok: true } ? R["models"] : never : never = [];
       if (activeKey) {
-        const verified = await verifyOpenRouterKey(activeKey);
+        const verified = await verifyOpenRouterKeyForPuterCatalog(activeKey);
         if (!verified.ok) return { ok: false, error: verified.error };
         models = verified.models;
       }
