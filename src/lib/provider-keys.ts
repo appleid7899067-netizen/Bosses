@@ -25,9 +25,9 @@ export type OpenRouterModel = {
 
 export const API_KEY_CHANGED_EVENT = "bosses:api-key-changed";
 
-// Puter exposes these model IDs through its own gateway. When the same model ID
-// is also present in OpenRouter, Boss can call that model through the user's
-// OpenRouter key. This is the same model identity, not a Puter-billed request.
+// These are model IDs known to the Puter catalog. If an identical model ID is
+// also exposed by OpenRouter, Boss may call that model through the user's
+// OpenRouter key. This does NOT route through Puter's gateway or billing.
 export const PUTER_MODEL_IDS = [
   "openai/gpt-5.6-luna",
   "openai/gpt-5.6-luna-pro",
@@ -141,6 +141,21 @@ export async function connectApiKey(key: string): Promise<{ detection: ProviderD
   return { detection, models: verified.models };
 }
 
+export async function verifyOpenRouterKeyForPuterCatalog(key: string): Promise<{ ok: true; models: OpenRouterModel[] } | { ok: false; error: string }> {
+  const verified = await verifyOpenRouterKey(key);
+  if (!verified.ok) return verified;
+  try {
+    const puterModels = await fetchPuterModelCatalog();
+    const compatible = filterOpenRouterToPuterModels(verified.models, puterModels);
+    return { ok: true, models: compatible };
+  } catch {
+    return {
+      ok: false,
+      error: "OpenRouter key ใช้งานได้ แต่ตรวจสอบ Puter model catalog ไม่สำเร็จ จึงยังไม่ยอมเดาโมเดลให้",
+    };
+  }
+}
+
 export function chooseOpenRouterModel(models: OpenRouterModel[], prompt: string): OpenRouterModel | null {
   if (!models.length) return null;
   const p = prompt.toLowerCase();
@@ -148,10 +163,8 @@ export function chooseOpenRouterModel(models: OpenRouterModel[], prompt: string)
   const preferred = coding
     ? ["openai/", "anthropic/", "google/", "deepseek/", "qwen/", "x-ai/", "mistralai/"]
     : ["openai/", "google/", "anthropic/", "deepseek/", "qwen/"];
-  // Prefer model IDs that are also exposed by Puter, when OpenRouter has them.
+  // At this point models have already been filtered against the live Puter catalog.
   // The request still goes to OpenRouter because the user supplied an OpenRouter key.
-  const puterMatch = PUTER_MODEL_IDS.find((id) => models.some((m) => m.id.toLowerCase() === id));
-  if (puterMatch) return models.find((m) => m.id.toLowerCase() === puterMatch) ?? null;
 
   for (const prefix of preferred) {
     const found = models.find((m) => m.id.startsWith(prefix) && !/image|audio|video|embedding|rerank|transcription/i.test(m.id));
