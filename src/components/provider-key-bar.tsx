@@ -21,7 +21,8 @@ export function ProviderKeyBar() {
         throw new Error(detection.detail);
       }
       const result = await connectApiKey(key);
-      const puterCatalogMatches = result.models.filter((model) => isPuterCatalogModel(model.id)).length;\n      setStatus(`${result.detection.label} · ${result.models.length} models · Puter catalog ${puterCatalogMatches}`);
+      const puterCatalogMatches = result.models.filter((model) => isPuterCatalogModel(model.id)).length;
+      setStatus(`${result.detection.label} · ${result.models.length} models · Puter catalog ${puterCatalogMatches}`);
       setValue("");
       toast.success(`OpenRouter พร้อมใช้งาน · พบโมเดลที่มีใน Puter ${puterCatalogMatches} รายการ`);
     } catch (error) {
