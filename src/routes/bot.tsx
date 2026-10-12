@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
-import { processMessageWithTools } from '~/lib/bot-with-tools';
+import { processMessageWithTools } from '../lib/bot-with-tools';
 
 export const Route = createFileRoute('/bot')({
   component: BotPage,
