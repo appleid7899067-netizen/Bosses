@@ -11,7 +11,7 @@ import {
 } from "@/lib/github.functions";
 import { chatWithPuter, type ChatResult, type ChatTurn } from "@/lib/puter";
 import { callWithFallback, loadCodingFleetTools } from "@/lib/puter-tool-loader";
-import { callOpenRouter, chooseOpenRouterModel, getActiveApiKey, verifyOpenRouterKeyForPuterCatalog } from "@/lib/provider-keys";
+import { callOpenRouter, chooseOpenRouterModel, getActiveApiKey, verifyOpenRouterKey, verifyOpenRouterKeyForPuterCatalog } from "@/lib/provider-keys";
 
 export type FleetRequest = {
   mode: keyof typeof SYSTEM_PROMPTS | string;
