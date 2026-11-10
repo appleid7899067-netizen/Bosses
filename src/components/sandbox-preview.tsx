@@ -72,7 +72,7 @@ export function SandboxPreview({ files = [] }: SandboxPreviewProps) {
   async function reset() {
     try {
       await containerRef.current?.teardown?.();
-    } catch {}
+    } catch { /* intentionally ignored */ }
     containerRef.current = null;
     processRef.current = null;
     setUrl("");
