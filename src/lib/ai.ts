@@ -1,4 +1,5 @@
 import { SYSTEM_PROMPTS } from "@/lib/catalog";
+import { summarizeSkills } from "@/lib/skills";
 import {
   createGitHubBranch,
   createGitHubIssue,
@@ -59,7 +60,7 @@ const AUTONOMOUS_FILES = [
 ];
 
 function buildUserMessage(data: FleetRequest, githubContext?: string) {
-  const parts: string[] = [GITHUB_TOOLS.trim()];
+  const parts: string[] = [GITHUB_TOOLS.trim(), `Enabled Bosses skills:\n${summarizeSkills()}`];
   if (data.language) parts.push(`Language: ${data.language}`);
   if (data.targetLanguage) parts.push(`Target language: ${data.targetLanguage}`);
   if (data.extras) parts.push(data.extras);
