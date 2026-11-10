@@ -33,8 +33,7 @@ wss.on('connection', (ws) => {
     ws.send(data.toString());
   });
 
-  /** @param {Buffer|string} message */
-  ws.on('message', (message) => {
+  ws.on('message', (/** @type {Buffer|string} */ message) => {
     shell.stdin.write(message);
   });
 
