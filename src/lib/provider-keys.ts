@@ -53,14 +53,14 @@ function sessionSet(value: string | null) {
   try {
     if (value) sessionStorage.setItem("bosses.ai.apiKey", value);
     else sessionStorage.removeItem("bosses.ai.apiKey");
-  } catch {}
+  } catch { /* intentionally ignored */ }
 }
 
 function notifyKeyChanged() {
   if (typeof window === "undefined") return;
   try {
     window.dispatchEvent(new Event(API_KEY_CHANGED_EVENT));
-  } catch {}
+  } catch { /* intentionally ignored */ }
 }
 
 export function getActiveApiKey() {
@@ -214,7 +214,7 @@ export async function callOpenRouter(opts: {
         const data = JSON.parse(payload) as { choices?: Array<{ delta?: { content?: string } }> };
         const piece = data.choices?.[0]?.delta?.content ?? "";
         if (piece) { full += piece; opts.onDelta?.(full); }
-      } catch {}
+      } catch { /* intentionally ignored */ }
     }
   }
   if (!full.trim()) return { ok: false as const, error: "OpenRouter returned an empty response." };
