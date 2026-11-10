@@ -3,6 +3,23 @@ import { createFileRoute } from "@tanstack/react-router";
 const CODINGFLEET_TOOLS = "https://www.codingfleet.com/api/tools";
 const GITHUB_API = "https://api.github.com";
 const MAX_TOOLS = 20;
+const WRITE_TOOLS = new Set(["github_create_issue", "github_update_issue"]);
+
+function allowedRepositories(): Set<string> {
+  const configured = process.env.GITHUB_ALLOWED_REPOS?.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+  return new Set(configured?.length ? configured : ["appleid7899067-netizen/bosses"]);
+}
+
+function assertRepositoryAllowed(owner: string, repo: string) {
+  const fullName = owner + "/" + repo;
+  if (!allowedRepositories().has(fullName.toLowerCase())) throw new Error("GitHub repository is not allowlisted.");
+}
+
+function isMcpAuthorized(request: Request): boolean {
+  const configured = process.env.MCP_SHARED_SECRET;
+  const supplied = request.headers.get("x-mcp-secret");
+  return Boolean(configured && supplied && supplied === configured);
+}
 
 type Tool = {
   name: string;
@@ -84,6 +101,9 @@ async function githubCall(name: string, args: Record<string, unknown>): Promise<
   const owner = String(args.owner ?? "").trim();
   const repo = String(args.repo ?? "").trim();
   if (!owner || !repo) throw new Error("GitHub requires owner and repo.");
+  assertRepositoryAllowed(owner, repo);
+  const isWrite = WRITE_TOOLS.has(name);
+  if (isWrite && process.env.MCP_WRITE_ENABLED !== "true") throw new Error("GitHub write tools are disabled.");
   let path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
   let method = "GET";
   let requestBody: Record<string, unknown> | undefined;
@@ -124,9 +144,9 @@ async function githubCall(name: string, args: Record<string, unknown>): Promise<
     requestBody = update;
   }
   const token = process.env.GITHUB_TOKEN;
-  if ((name === "github_create_issue" || name === "github_update_issue") && !token) throw new Error("GitHub write tools require the GITHUB_TOKEN server environment variable.");
+  if (isWrite && !token) throw new Error("GitHub write tools require the GITHUB_TOKEN server environment variable.");
   const headers: Record<string, string> = { Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2026-03-10" };
-  if (token) headers.Authorization = `Bearer ${token}`;
+  if (isWrite && token) headers.Authorization = `Bearer ${token}`;
   if (requestBody) headers["Content-Type"] = "application/json";
   const response = await fetch(`${GITHUB_API}${path}`, { method, headers, body: requestBody ? JSON.stringify(requestBody) : undefined });
   const text = await response.text();
@@ -169,6 +189,7 @@ async function handleMcp(request: Request): Promise<Response> {
       return Response.json({ jsonrpc: "2.0", id, result: { tools: tools.map((tool) => ({ name: tool.name, description: tool.description, inputSchema: tool.inputSchema })) } });
     }
     if (method === "tools/call") {
+      if (!isMcpAuthorized(request)) return Response.json({ jsonrpc: "2.0", id, error: { code: -32001, message: "MCP authentication is required." } }, { status: 401 });
       const params = body.params && typeof body.params === "object" ? body.params as Record<string, unknown> : {};
       const name = String(params.name ?? "");
       const args = params.arguments && typeof params.arguments === "object" && !Array.isArray(params.arguments) ? params.arguments as Record<string, unknown> : {};
