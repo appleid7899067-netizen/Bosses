@@ -57,7 +57,7 @@ function parseArgs(value: unknown): Record<string, unknown> {
     try {
       const parsed = JSON.parse(value);
       if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
-    } catch {}
+    } catch { /* intentionally ignored */ }
   }
   return {};
 }
