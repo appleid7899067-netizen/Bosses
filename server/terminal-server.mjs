@@ -50,6 +50,7 @@ wss.on('connection', (ws) => {
   });
 
   // รับคำสั่งจากหน้าเว็บ แล้วส่งไปรันที่ Bash
+  /** @param {Buffer|string} message */
   ws.on('message', (message) => {
     if (shell.stdin.writable) {
       shell.stdin.write(message.toString());
