@@ -59,7 +59,15 @@ export async function githubAppInstallUrl(): Promise<string> {
   return `https://github.com/apps/${encodeURIComponent(result.data.slug)}/installations/new`;
 }
 
+function assertAllowedRepository(owner: string, repo: string) {
+  const configured = process.env.GITHUB_ALLOWED_REPOS?.split(",").map((value) => value.trim().toLowerCase()).filter(Boolean);
+  const allowed = new Set(configured?.length ? configured : ["appleid7899067-netizen/bosses"]);
+  const fullName = owner + "/" + repo;
+  if (!allowed.has(fullName.toLowerCase())) throw new Error("GitHub repository is not allowlisted.");
+}
+
 async function getInstallationToken(owner: string, repo: string): Promise<string> {
+  assertAllowedRepository(owner, repo);
   const jwt = createAppJwt();
   const installation = await github<{ id: number }>(
     `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/installation`,

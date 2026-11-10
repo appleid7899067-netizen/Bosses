@@ -11,6 +11,12 @@ import {
   githubWriteFile,
 } from "./github-app.server";
 
+function assertGitHubMutationsEnabled() {
+  if (process.env.GITHUB_MUTATIONS_ENABLED !== "true") {
+    throw new Error("GitHub mutations are disabled. Enable GITHUB_MUTATIONS_ENABLED explicitly.");
+  }
+}
+
 const repoSchema = z.object({
   owner: z.string().min(1).max(100),
   repo: z.string().min(1).max(100),
@@ -39,7 +45,7 @@ export const writeGitHubFile = createServerFn({ method: "POST" })
       branch: z.string().max(200).optional(),
     }),
   )
-  .handler(async ({ data }) => githubWriteFile(data));
+  .handler(async ({ data }) => { assertGitHubMutationsEnabled(); return githubWriteFile(data); });
 
 export const createGitHubBranch = createServerFn({ method: "POST" })
   .validator(
@@ -48,7 +54,7 @@ export const createGitHubBranch = createServerFn({ method: "POST" })
       from: z.string().max(200).optional(),
     }),
   )
-  .handler(async ({ data }) => githubCreateBranch(data));
+  .handler(async ({ data }) => { assertGitHubMutationsEnabled(); return githubCreateBranch(data); });
 
 export const createGitHubPullRequest = createServerFn({ method: "POST" })
   .validator(
@@ -59,7 +65,7 @@ export const createGitHubPullRequest = createServerFn({ method: "POST" })
       body: z.string().max(20_000).optional(),
     }),
   )
-  .handler(async ({ data }) => githubCreatePullRequest(data));
+  .handler(async ({ data }) => { assertGitHubMutationsEnabled(); return githubCreatePullRequest(data); });
 
 export const createGitHubIssue = createServerFn({ method: "POST" })
   .validator(
@@ -68,7 +74,7 @@ export const createGitHubIssue = createServerFn({ method: "POST" })
       body: z.string().max(20_000).optional(),
     }),
   )
-  .handler(async ({ data }) => githubCreateIssue(data));
+  .handler(async ({ data }) => { assertGitHubMutationsEnabled(); return githubCreateIssue(data); });
 
 export const getGitHubActions = createServerFn({ method: "GET" })
   .validator(repoSchema.extend({ branch: z.string().max(200).optional() }))
@@ -82,4 +88,4 @@ export const dispatchGitHubWorkflow = createServerFn({ method: "POST" })
       inputs: z.record(z.string(), z.string()).optional(),
     }),
   )
-  .handler(async ({ data }) => githubDispatchWorkflow(data));
+  .handler(async ({ data }) => { assertGitHubMutationsEnabled(); return githubDispatchWorkflow(data); });

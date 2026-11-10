@@ -1,4 +1,5 @@
 import { SYSTEM_PROMPTS } from "@/lib/catalog";
+import { summarizeSkills } from "@/lib/skills";
 import {
   createGitHubBranch,
   createGitHubIssue,
@@ -11,7 +12,7 @@ import {
 } from "@/lib/github.functions";
 import { chatWithPuter, type ChatResult, type ChatTurn } from "@/lib/puter";
 import { callWithFallback, loadCodingFleetTools } from "@/lib/puter-tool-loader";
-import { callOpenRouter, chooseOpenRouterModel, getActiveApiKey, verifyOpenRouterKeyForPuterCatalog } from "@/lib/provider-keys";
+import { callOpenRouter, chooseOpenRouterModel, getActiveApiKey, verifyOpenRouterKeyForPuterCatalog, type OpenRouterModel } from "@/lib/provider-keys";
 
 export type FleetRequest = {
   mode: keyof typeof SYSTEM_PROMPTS | string;
@@ -59,7 +60,7 @@ const AUTONOMOUS_FILES = [
 ];
 
 function buildUserMessage(data: FleetRequest, githubContext?: string) {
-  const parts: string[] = [GITHUB_TOOLS.trim()];
+  const parts: string[] = [GITHUB_TOOLS.trim(), `Enabled Bosses skills:\n${summarizeSkills()}`];
   if (data.language) parts.push(`Language: ${data.language}`);
   if (data.targetLanguage) parts.push(`Target language: ${data.targetLanguage}`);
   if (data.extras) parts.push(data.extras);
@@ -274,7 +275,7 @@ export async function runFleet(data: FleetRequest, onDelta?: (full: string) => v
   const isOpenRouterSelection = /^openrouter:/i.test(selectedModelId) || (Boolean(activeKey) && !isPuterSelection);
   if (isOpenRouterSelection) {
     try {
-      let models: Awaited<ReturnType<typeof verifyOpenRouterKey>> extends infer R ? R extends { ok: true } ? R["models"] : never : never = [];
+      let models: OpenRouterModel[] = [];
       if (activeKey) {
         const verified = await verifyOpenRouterKeyForPuterCatalog(activeKey);
         if (!verified.ok) return { ok: false, error: verified.error };

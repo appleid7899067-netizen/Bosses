@@ -1,36 +1,24 @@
-import { getTool } from './tools';
-
 export async function processMessageWithTools(userMessage: string) {
-  console.log(`💬 ผู้ใช้: ${userMessage}`);
-  
-  let botReply = '';
-  let toolResult = null;
+  const normalized = userMessage.trim().toLowerCase();
+  const requestedTool = normalized.includes("ไฟล์") || normalized.includes("ls")
+    ? "list_files"
+    : normalized.includes("รัน")
+      ? "run_command"
+      : normalized.includes("อ่าน")
+        ? "read_file"
+        : null;
 
-  if (userMessage.includes('ไฟล์') || userMessage.includes('ls')) {
-    const tool = getTool('list_files');
-    if (tool) {
-      toolResult = await tool.execute({ folder: '.' });
-      botReply = `✅ เรียกใช้เครื่องมือ: list_files\n\n${toolResult}\n\nนี่คือรายการไฟล์ในโปรเจกต์ครับ!`;
-    }
-  } else if (userMessage.includes('รัน')) {
-    const tool = getTool('run_command');
-    if (tool) {
-      toolResult = await tool.execute({ command: userMessage.replace('รัน', '').trim() });
-      botReply = `⚡ เรียกใช้เครื่องมือ: run_command\n\n${toolResult}`;
-    }
-  } else if (userMessage.includes('อ่าน')) {
-    const tool = getTool('read_file');
-    if (tool) {
-      toolResult = await tool.execute({ path: 'src/routes/bot.tsx' });
-      botReply = `📂 เรียกใช้เครื่องมือ: read_file\n\n${toolResult}`;
-    }
-  } else {
-    botReply = `ได้ครับ! 🛠️\n\nผมช่วยได้:\n- 📁 พิมพ์ "ดูไฟล์"\n- ⚡ พิมพ์ "รัน ls"\n- 📂 พิมพ์ "อ่านไฟล์"\n\nลองพิมพ์ดูสิครับ! ✨`;
+  if (!requestedTool) {
+    return {
+      reply: "บอทหน้านี้ยังไม่เปิดใช้เครื่องมือระบบจริง จึงไม่รันคำสั่งหรืออ่านไฟล์แทนผู้ใช้",
+      toolUsed: false,
+      toolResult: null,
+    };
   }
 
   return {
-    reply: botReply,
-    toolUsed: toolResult ? true : false,
-    toolResult,
+    reply: `เครื่องมือ ${requestedTool} ยังไม่พร้อมใช้งานจริง จึงไม่ได้รันคำสั่งหรืออ่านไฟล์ใด ๆ`,
+    toolUsed: false,
+    toolResult: null,
   };
 }

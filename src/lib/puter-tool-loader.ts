@@ -243,7 +243,7 @@ async function loadPublicMcpTools(): Promise<CodingFleetTool[]> {
         const t = raw as Record<string, unknown>; const name = String(t.name ?? "").trim(); if (!name) continue;
         loaded.push({ name: `mcp_${name}`, description: String(t.description ?? `Public MCP tool: ${name}`), inputSchema: t.inputSchema ?? { type: "object", properties: {} }, mcpServer: server, mcpToolName: name });
       }
-    } catch {}
+    } catch { /* intentionally ignored */ }
   }
   return loaded;
 }

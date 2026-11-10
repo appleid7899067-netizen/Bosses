@@ -4,12 +4,22 @@ import process from 'process';
 import path from 'path';
 
 const PORT = 8081;
+const HOST = "127.0.0.1";
+const TOKEN = process.env.LOCAL_TERMINAL_TOKEN;
+if (process.env.ENABLE_LOCAL_TERMINAL !== "true" || !TOKEN) {
+  console.error("Local terminal is disabled. Set ENABLE_LOCAL_TERMINAL=true and LOCAL_TERMINAL_TOKEN to enable it.");
+  process.exit(0);
+}
 const PROJECT_ROOT = process.cwd();
 
 console.log('🖥️  กำลังเริ่ม Terminal Server...');
 console.log('📂 โฟลเดอร์โปรเจกต์:', PROJECT_ROOT);
 
-const wss = new WebSocketServer({ port: PORT });
+const wss = new WebSocketServer({
+  port: PORT,
+  host: HOST,
+  verifyClient: ({ req }) => new URL(req.url ?? "/", "http://127.0.0.1").searchParams.get("token") === TOKEN,
+});
 
 wss.on('listening', () => {
   console.log(`✅ Terminal Server ทำงานที่พอร์ต ${PORT}`);
@@ -40,7 +50,7 @@ wss.on('connection', (ws) => {
   });
 
   // รับคำสั่งจากหน้าเว็บ แล้วส่งไปรันที่ Bash
-  ws.on('message', (message) => {
+  ws.on('message', (/** @type {Buffer|string} */ message) => {
     if (shell.stdin.writable) {
       shell.stdin.write(message.toString());
     }
