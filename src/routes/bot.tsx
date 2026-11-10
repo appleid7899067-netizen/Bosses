@@ -38,13 +38,13 @@ function BotPage() {
     <div className="min-h-screen bg-gray-950 text-white p-4 md:p-6">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-2xl font-bold mb-2">🤖 บอทผู้ช่วย — มีเครื่องมือในตัว 🛠️</h1>
-        <p className="text-gray-400 text-sm mb-6">พิมพ์: "ดูไฟล์", "รันคำสั่ง", "อ่านไฟล์"</p>
+        <p className="text-gray-400 text-sm mb-6">หน้านี้เป็นเดโม UI — เครื่องมือระบบถูกปิดไว้เพื่อความปลอดภัย</p>
         
         <div className="bg-gray-900 border border-gray-700 rounded-lg p-4 h-[500px] overflow-y-auto mb-4 space-y-4">
           {messages.length === 0 && (
             <p className="text-gray-500 text-center mt-20">
               🛠️ บอทพร้อมใช้งานเครื่องมือแล้ว!<br />
-              ลองพิมพ์: <span className="text-blue-400">"ดูไฟล์ทั้งหมด"</span> หรือ <span className="text-blue-400">"รัน ls -la"</span>
+              เครื่องมือระบบยังไม่เปิดใช้งานจริง
             </p>
           )}
           {messages.map((msg, i) => (
@@ -78,7 +78,7 @@ function BotPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            placeholder="พิมพ์คำสั่งหรือคำถาม..."
+            placeholder="พิมพ์ข้อความเพื่อดูเดโม"
             className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-4 py-3 text-white focus:outline-none focus:border-blue-500"
           />
           <button
