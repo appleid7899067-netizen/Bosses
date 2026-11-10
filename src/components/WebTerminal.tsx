@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import { Terminal } from '@xterm/xterm';
 import '@xterm/xterm/css/xterm.css';
 
-const WS_URL = 'ws://localhost:8081';
+const TERMINAL_TOKEN = import.meta.env.VITE_LOCAL_TERMINAL_TOKEN as string | undefined;
+const WS_URL = TERMINAL_TOKEN ? `ws://127.0.0.1:8081/?token=${encodeURIComponent(TERMINAL_TOKEN)}` : null;
 
 const WebTerminal = () => {
   const terminalRef = useRef<HTMLDivElement>(null);
@@ -12,6 +13,8 @@ const WebTerminal = () => {
 
   useEffect(() => {
     if (!terminalRef.current) return;
+
+    if (!WS_URL) return;
 
     // สร้างเทอร์มินัล
     const term = new Terminal({
