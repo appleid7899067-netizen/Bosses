@@ -1,0 +1,32 @@
+{
+  "code-quality": {
+    "name": "code-quality",
+    "description": "ตรวจสอบคุณภาพโค้ด ความถูกต้อง ความปลอดภัย การทดสอบ และความสามารถในการบำรุงรักษา",
+    "enabled": true,
+    "category": "engineering"
+  },
+  "github": {
+    "name": "github",
+    "description": "วิเคราะห์และทำงานกับ GitHub โดยเคารพ authentication, allowlist และสิทธิ์ของ repository",
+    "enabled": true,
+    "category": "integrations"
+  },
+  "mcp-builder": {
+    "name": "mcp-builder",
+    "description": "ออกแบบ MCP tools และ server ที่มี schema, validation, error handling และ security guardrails",
+    "enabled": true,
+    "category": "integrations"
+  },
+  "frontend-design": {
+    "name": "frontend-design",
+    "description": "ออกแบบ UI ที่มีเอกลักษณ์ ใช้งานได้จริง เข้าถึงได้ และ responsive",
+    "enabled": true,
+    "category": "design"
+  },
+  "webapp-testing": {
+    "name": "webapp-testing",
+    "description": "ทดสอบ web app ด้วย browser automation, DOM inspection, screenshots และ console checks",
+    "enabled": true,
+    "category": "quality"
+  }
+}
